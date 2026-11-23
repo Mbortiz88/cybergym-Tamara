@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Tamara Fitness" />
   <meta name="theme-color" content="#040814" />
-  <title>Tamara Gomes Fitness • CyberHUD v1.6</title>
+  <title>Tamara Gomes Fitness • CyberHUD v1.7</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icon-512.png" />
   <link rel="icon" type="image/png" href="icon-512.png" />
@@ -31,18 +31,32 @@
         <span class="brand-icon">⚡</span>
         <h1>TAMARA GOMES <span>FITNESS</span></h1>
       </div>
-      <div class="brand-sub">CYBERHUD V1.6 // OFFLINE PWA EDITION</div>
+      <div class="brand-sub">CYBERHUD V1.7 // OFFLINE PWA EDITION</div>
       <div class="header-laser-bar"></div>
     </header>
 
     <!-- SCREEN: TREINOS (HOME) -->
     <main id="homeScreen" class="screen active">
+      <!-- BANNER DE TREINO EM ANDAMENTO -->
+      <div id="resumeWorkoutBanner" class="resume-banner" style="display:none;" onclick="resumeActiveWorkout()">
+        <div class="rb-left">
+          <span class="rb-tag">⚡ TREINO EM ANDAMENTO</span>
+          <strong id="rbTitle">Treino A • 45% concluído</strong>
+          <small>Toque para continuar exatamente de onde parou</small>
+        </div>
+        <div class="rb-btn">CONTINUAR ›</div>
+      </div>
+
       <div class="workout-cards-list" id="workoutCardsList"></div>
 
       <div class="quick-status-card">
         <div class="status-row">
           <span class="status-label">SESSÕES CONCLUÍDAS</span>
           <span class="status-val" id="homeTotalSessions">0</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">SEQUÊNCIA ATUAL</span>
+          <span class="status-val" id="homeStreakVal">0 DIAS</span>
         </div>
         <div class="status-row">
           <span class="status-label">ÚLTIMO TREINO</span>
@@ -172,21 +186,60 @@
       </div>
     </main>
 
-    <!-- SCREEN: EVOLUÇÃO & MEDIDAS -->
+    <!-- SCREEN: EVOLUÇÃO & CALENDÁRIO GYMRATS -->
     <main id="dashboardScreen" class="screen">
       <div class="section-heading">
-        <h2>EVOLUÇÃO &amp; PERFORMANCE</h2>
+        <h2>EVOLUÇÃO &amp; CHECK-INS</h2>
         <span class="sub-chip">DADOS LOCAIS</span>
       </div>
 
-      <div class="kpi-grid">
+      <div class="kpi-grid kpi-grid-3">
         <div class="kpi-card">
-          <span class="kpi-label">TREINOS FEITOS</span>
+          <span class="kpi-label">CHECK-INS</span>
           <span class="kpi-value" id="kpiWorkouts">0</span>
+        </div>
+        <div class="kpi-card">
+          <span class="kpi-label">SEQUÊNCIA</span>
+          <span class="kpi-value kpi-green" id="kpiStreak">0d</span>
         </div>
         <div class="kpi-card">
           <span class="kpi-label">ÚLTIMO PESO</span>
           <span class="kpi-value" id="kpiWeight">—</span>
+        </div>
+      </div>
+
+      <!-- CALENDÁRIO ESTILO GYMRATS -->
+      <div class="panel-card gymrats-cal-card">
+        <div class="cal-top-header">
+          <div class="panel-title" style="margin-bottom:0;">📅 CALENDÁRIO DE FREQUÊNCIA</div>
+          <span class="cal-month-count" id="calMonthCheckinsCount">0 dias no mês</span>
+        </div>
+
+        <div class="cal-nav-bar">
+          <button type="button" class="cal-nav-btn" onclick="changeCalendarMonth(-1)">‹</button>
+          <span class="cal-month-title" id="calMonthLabel">NOVEMBRO 2026</span>
+          <button type="button" class="cal-nav-btn" onclick="changeCalendarMonth(1)">›</button>
+        </div>
+
+        <div class="cal-weekdays">
+          <span>DOM</span>
+          <span>SEG</span>
+          <span>TER</span>
+          <span>QUA</span>
+          <span>QUI</span>
+          <span>SEX</span>
+          <span>SÁB</span>
+        </div>
+
+        <div class="cal-days-grid" id="calDaysGrid"></div>
+
+        <!-- DETALHE DO DIA CLICADO NO CALENDÁRIO -->
+        <div class="cal-day-detail" id="calDayDetailBox">
+          <div class="cdd-header">
+            <span id="cddDateTitle">Selecione um dia no calendário</span>
+            <span class="cdd-badge" id="cddStatusBadge">CHECK-IN</span>
+          </div>
+          <div id="cddContent" class="cdd-content">Toque em qualquer dia marcado em neon para ver qual treino e cardio foram realizados.</div>
         </div>
       </div>
 
