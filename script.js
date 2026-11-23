@@ -3,8 +3,7 @@ const workoutData = {
     id: "A",
     name: "Treino A",
     tag: "QUADRÍCEPS, EMPURRAR & CORE",
-    focus:
-      "Anterior de coxa, glúteos, sóleo, dorsais, peitoral e abdômen infra.",
+    focus: "Anterior de coxa, glúteos, sóleo, dorsais, peitoral e abdômen infra.",
     exercises: [
       {
         id: "a1",
@@ -13,7 +12,7 @@ const workoutData = {
         targetReps: "12–15",
         defaultLoad: 40,
         defaultReps: 12,
-        note: "Amplitude confortável • Foco em quadríceps e glúteos",
+        note: "Amplitude confortável • Foco em quadríceps e glúteos"
       },
       {
         id: "a2",
@@ -22,7 +21,7 @@ const workoutData = {
         targetReps: "12–15",
         defaultLoad: 20,
         defaultReps: 12,
-        note: "Foco anterior de coxa e estabilidade do joelho",
+        note: "Foco anterior de coxa e estabilidade do joelho"
       },
       {
         id: "a3",
@@ -31,7 +30,7 @@ const workoutData = {
         targetReps: "15–20",
         defaultLoad: 15,
         defaultReps: 15,
-        note: "Foco no sóleo • Pausa curta embaixo e em cima",
+        note: "Foco no sóleo • Pausa curta embaixo e em cima"
       },
       {
         id: "a4",
@@ -40,7 +39,7 @@ const workoutData = {
         targetReps: "12–15",
         defaultLoad: 20,
         defaultReps: 12,
-        note: "Costas + trabalho indireto de bíceps",
+        note: "Costas + trabalho indireto de bíceps"
       },
       {
         id: "a5",
@@ -49,7 +48,7 @@ const workoutData = {
         targetReps: "12–15",
         defaultLoad: 10,
         defaultReps: 12,
-        note: "Peitoral, ombros + trabalho indireto de tríceps",
+        note: "Peitoral, ombros + trabalho indireto de tríceps"
       },
       {
         id: "a6",
@@ -58,16 +57,15 @@ const workoutData = {
         targetReps: "12–15",
         defaultLoad: 0,
         defaultReps: 12,
-        note: "Elevação controlada de joelhos/pernas (0 = Peso do corpo)",
-      },
-    ],
+        note: "Elevação controlada de joelhos/pernas (0 = Peso do corpo)"
+      }
+    ]
   },
   B: {
     id: "B",
     name: "Treino B",
     tag: "POSTERIOR, REMADA & TRÍCEPS",
-    focus:
-      "Posterior de coxa, adutores, gastrocnêmio, postura/costas, tríceps e prancha.",
+    focus: "Posterior de coxa, adutores, gastrocnêmio, postura/costas, tríceps e prancha.",
     exercises: [
       {
         id: "b1",
@@ -76,7 +74,7 @@ const workoutData = {
         targetReps: "12–15",
         defaultLoad: 20,
         defaultReps: 12,
-        note: "Foco em posterior de coxa • Controle na volta",
+        note: "Foco em posterior de coxa • Controle na volta"
       },
       {
         id: "b2",
@@ -85,7 +83,7 @@ const workoutData = {
         targetReps: "15",
         defaultLoad: 25,
         defaultReps: 15,
-        note: "Parte interna da coxa • Movimento contínuo",
+        note: "Parte interna da coxa • Movimento contínuo"
       },
       {
         id: "b3",
@@ -94,7 +92,7 @@ const workoutData = {
         targetReps: "15–20",
         defaultLoad: 40,
         defaultReps: 15,
-        note: "Foco no gastrocnêmio • Joelhos quase estendidos",
+        note: "Foco no gastrocnêmio • Joelhos quase estendidos"
       },
       {
         id: "b4",
@@ -103,7 +101,7 @@ const workoutData = {
         targetReps: "12–15",
         defaultLoad: 20,
         defaultReps: 12,
-        note: "Postura, costas + trabalho indireto de bíceps",
+        note: "Postura, costas + trabalho indireto de bíceps"
       },
       {
         id: "b5",
@@ -112,7 +110,7 @@ const workoutData = {
         targetReps: "12–15",
         defaultLoad: 15,
         defaultReps: 12,
-        note: "Foco direto na parte posterior dos braços",
+        note: "Foco direto na parte posterior dos braços"
       },
       {
         id: "b6",
@@ -121,16 +119,15 @@ const workoutData = {
         targetReps: "30–45s",
         defaultLoad: 0,
         defaultReps: 35,
-        note: "Controle abdominal e cervical neutra (Reps = segundos)",
-      },
-    ],
+        note: "Controle abdominal e cervical neutra (Reps = segundos)"
+      }
+    ]
   },
   C: {
     id: "C",
     name: "Treino C",
     tag: "GLÚTEOS, OMBROS & BÍCEPS",
-    focus:
-      "Glúteo médio, agachamento seguro, panturrilha em pé, ombros, bíceps e core.",
+    focus: "Glúteo médio, agachamento seguro, panturrilha em pé, ombros, bíceps e core.",
     exercises: [
       {
         id: "c1",
@@ -139,7 +136,7 @@ const workoutData = {
         targetReps: "15",
         defaultLoad: 30,
         defaultReps: 15,
-        note: "Glúteo médio e estabilidade lateral do quadril/joelho",
+        note: "Glúteo médio e estabilidade lateral do quadril/joelho"
       },
       {
         id: "c2",
@@ -148,7 +145,7 @@ const workoutData = {
         targetReps: "12",
         defaultLoad: 10,
         defaultReps: 12,
-        note: "Com apoio e amplitude segura para joelhos e lombar",
+        note: "Com apoio e amplitude segura para joelhos e lombar"
       },
       {
         id: "c3",
@@ -157,7 +154,7 @@ const workoutData = {
         targetReps: "15–20",
         defaultLoad: 15,
         defaultReps: 15,
-        note: "Amplitude máxima com apoio firme",
+        note: "Amplitude máxima com apoio firme"
       },
       {
         id: "c4",
@@ -166,7 +163,7 @@ const workoutData = {
         targetReps: "12",
         defaultLoad: 10,
         defaultReps: 12,
-        note: "Ombros + trabalho indireto de tríceps",
+        note: "Ombros + trabalho indireto de tríceps"
       },
       {
         id: "c5",
@@ -175,7 +172,7 @@ const workoutData = {
         targetReps: "12–15",
         defaultLoad: 10,
         defaultReps: 12,
-        note: "Foco direto nos braços sem balançar o tronco",
+        note: "Foco direto nos braços sem balançar o tronco"
       },
       {
         id: "c6",
@@ -184,16 +181,15 @@ const workoutData = {
         targetReps: "12–15",
         defaultLoad: 0,
         defaultReps: 12,
-        note: "Ativação profunda do core com cabeça totalmente apoiada",
-      },
-    ],
+        note: "Ativação profunda do core com cabeça totalmente apoiada"
+      }
+    ]
   },
   D: {
     id: "D",
     name: "Treino D",
     tag: "FULLBODY (FIM DE SEMANA)",
-    focus:
-      "Adutores, glúteos sem sobrecarga no joelho, resistência de panturrilha, postura, braços e core.",
+    focus: "Adutores, glúteos sem sobrecarga no joelho, resistência de panturrilha, postura, braços e core.",
     exercises: [
       {
         id: "d1",
@@ -202,7 +198,7 @@ const workoutData = {
         targetReps: "15",
         defaultLoad: 25,
         defaultReps: 15,
-        note: "Parte interna da coxa • Movimento controlado",
+        note: "Parte interna da coxa • Movimento controlado"
       },
       {
         id: "d2",
@@ -211,7 +207,7 @@ const workoutData = {
         targetReps: "12–15",
         defaultLoad: 30,
         defaultReps: 12,
-        note: "Glúteos e posterior sem sobrecarga vertical nos joelhos/tíbia",
+        note: "Glúteos e posterior sem sobrecarga vertical nos joelhos/tíbia"
       },
       {
         id: "d3",
@@ -220,7 +216,7 @@ const workoutData = {
         targetReps: "15–20",
         defaultLoad: 0,
         defaultReps: 15,
-        note: "Estímulo leve de resistência e mobilidade de tornozelo",
+        note: "Estímulo leve de resistência e mobilidade de tornozelo"
       },
       {
         id: "d4",
@@ -229,7 +225,7 @@ const workoutData = {
         targetReps: "12–15",
         defaultLoad: 20,
         defaultReps: 12,
-        note: "Costas e postura • Puxada controlada em direção ao peito",
+        note: "Costas e postura • Puxada controlada em direção ao peito"
       },
       {
         id: "d5",
@@ -238,7 +234,7 @@ const workoutData = {
         targetReps: "12–15",
         defaultLoad: 10,
         defaultReps: 12,
-        note: "Posterior de ombros e alinhamento postural sem sobrecarga cervical",
+        note: "Posterior de ombros e alinhamento postural sem sobrecarga cervical"
       },
       {
         id: "d6",
@@ -247,10 +243,10 @@ const workoutData = {
         targetReps: "12–15",
         defaultLoad: 10,
         defaultReps: 12,
-        note: "Firmeza de braços e controle abdominal",
-      },
-    ],
-  },
+        note: "Firmeza de braços e controle abdominal"
+      }
+    ]
+  }
 };
 
 let currentWorkoutKey = "A";
@@ -260,7 +256,7 @@ let cardioState = {
   icon: "🪜",
   time: 15,
   kcal: 130,
-  done: false,
+  done: false
 };
 
 let timerSeconds = 60;
@@ -280,9 +276,7 @@ function registerSW() {
 }
 
 function navigateTo(screenId) {
-  document
-    .querySelectorAll(".screen")
-    .forEach((s) => s.classList.remove("active"));
+  document.querySelectorAll(".screen").forEach((s) => s.classList.remove("active"));
   document.getElementById(screenId).classList.add("active");
 
   document.querySelectorAll(".nav-btn").forEach((btn) => {
@@ -323,14 +317,12 @@ function renderWorkoutCards() {
 function openWorkout(key) {
   currentWorkoutKey = key;
   const w = workoutData[key];
-  const savedSetsStore =
-    JSON.parse(localStorage.getItem("tamara_sets_v13")) || {};
+  const savedSetsStore = JSON.parse(localStorage.getItem("tamara_sets_v13")) || {};
 
   document.getElementById("detailWorkoutName").textContent = w.name;
   document.getElementById("detailWorkoutTag").textContent = w.tag;
   document.getElementById("detailWorkoutFocus").textContent = w.focus;
 
-  // Inicializar estado das séries de cada exercício
   activeWorkoutState = {};
   w.exercises.forEach((ex) => {
     const saved = savedSetsStore[ex.id];
@@ -338,26 +330,32 @@ function openWorkout(key) {
       activeWorkoutState[ex.id] = saved.map((s) => ({
         load: Number(s.load) || 0,
         reps: Number(s.reps) || ex.defaultReps,
-        done: false,
+        done: false
       }));
     } else {
       activeWorkoutState[ex.id] = Array.from({ length: ex.setsCount }, () => ({
         load: ex.defaultLoad,
         reps: ex.defaultReps,
-        done: false,
+        done: false
       }));
     }
   });
 
-  // Resetar estado do cardio
-  cardioState.done = false;
-  document.getElementById("cardioDoneCheck").checked = false;
-  document.getElementById("cardioBox").classList.remove("cardio-completed");
-
+  resetCardioUI();
   renderExerciseCards();
   updateWorkoutTopMetrics();
   resetRestTimer();
   navigateTo("workoutDetailScreen");
+}
+
+function resetCardioUI() {
+  cardioState.done = false;
+  cardioState.time = 15;
+  cardioState.kcal = 130;
+  document.getElementById("cardioDoneCheck").checked = false;
+  document.getElementById("cardioBox").classList.remove("cardio-completed");
+  document.getElementById("cardioTimeVal").textContent = "15";
+  document.getElementById("cardioKcalVal").textContent = "130";
 }
 
 function getExerciseMaxPR(exId) {
@@ -407,9 +405,11 @@ function renderExerciseCards() {
               ✓
             </button>
           </div>
-        `,
+        `
         )
         .join("");
+
+      const canRemoveSet = sets.length > 1;
 
       return `
         <div class="hud-ex-card ${allDone ? "all-completed" : ""}" id="ex-card-${ex.id}">
@@ -439,6 +439,7 @@ function renderExerciseCards() {
           </div>
 
           <div class="hud-ex-footer">
+            ${canRemoveSet ? `<button type="button" class="btn-remove-set" onclick="removeLastSet('${ex.id}')">− REMOVER SÉRIE</button>` : ""}
             <button type="button" class="btn-extra-set" onclick="addExtraSet('${ex.id}')">+ SÉRIE EXTRA</button>
           </div>
         </div>
@@ -493,20 +494,29 @@ function addExtraSet(exId) {
   showToast("+1 SÉRIE ADICIONADA", 1200);
 }
 
+function removeLastSet(exId) {
+  const sets = activeWorkoutState[exId];
+  if (!sets || sets.length <= 1) {
+    showToast("MÍNIMO DE 1 SÉRIE OBRIGATÓRIA", 1300);
+    return;
+  }
+  sets.pop();
+  persistSetsTemplate(exId);
+  renderExerciseCards();
+  updateWorkoutTopMetrics();
+  showToast("−1 SÉRIE REMOVIDA", 1200);
+}
+
 function persistSetsTemplate(exId) {
-  const savedSetsStore =
-    JSON.parse(localStorage.getItem("tamara_sets_v13")) || {};
+  const savedSetsStore = JSON.parse(localStorage.getItem("tamara_sets_v13")) || {};
   savedSetsStore[exId] = activeWorkoutState[exId].map((s) => ({
     load: s.load,
-    reps: s.reps,
+    reps: s.reps
   }));
   localStorage.setItem("tamara_sets_v13", JSON.stringify(savedSetsStore));
 
-  // Atualizar PR se houver nova carga máxima
   const prs = JSON.parse(localStorage.getItem("tamara_prs_v13")) || {};
-  const maxNow = Math.max(
-    ...activeWorkoutState[exId].map((s) => Number(s.load) || 0),
-  );
+  const maxNow = Math.max(...activeWorkoutState[exId].map((s) => Number(s.load) || 0));
   if (maxNow > (prs[exId] || 0)) {
     prs[exId] = maxNow;
     localStorage.setItem("tamara_prs_v13", JSON.stringify(prs));
@@ -531,16 +541,27 @@ function updateWorkoutTopMetrics() {
   });
 
   const pct = totalSets > 0 ? Math.round((doneSets / totalSets) * 100) : 0;
-  document.getElementById("workoutTotalLoad").textContent =
-    `⚡ ${Math.round(totalVolume)} KG`;
-  document.getElementById("workoutProgressBadge").textContent =
-    `${doneSets}/${totalSets} • ${pct}%`;
+  document.getElementById("workoutTotalLoad").textContent = `⚡ ${Math.round(totalVolume)} KG`;
+  document.getElementById("workoutProgressBadge").textContent = `${doneSets}/${totalSets} • ${pct}%`;
   document.getElementById("workoutProgressFill").style.width = `${pct}%`;
 }
 
-/* =========================================================
-   CARDIO PÓS-TREINO EM GAVETA
-   ========================================================= */
+function clearCurrentWorkout() {
+  const w = workoutData[currentWorkoutKey];
+  w.exercises.forEach((ex) => {
+    if (activeWorkoutState[ex.id]) {
+      activeWorkoutState[ex.id].forEach((s) => {
+        s.done = false;
+      });
+    }
+  });
+  resetCardioUI();
+  resetRestTimer();
+  renderExerciseCards();
+  updateWorkoutTopMetrics();
+  showToast("SÉRIES E CARDIO DESMARCADOS ↺", 1600);
+}
+
 function toggleCardioDrawer() {
   const panel = document.getElementById("cardioDrawerPanel");
   const trigger = document.getElementById("cardioDrawerTrigger");
@@ -571,15 +592,12 @@ function adjustCardioMetric(type, delta) {
 
 function toggleCardioDone(checked) {
   cardioState.done = checked;
-  document
-    .getElementById("cardioBox")
-    .classList.toggle("cardio-completed", checked);
+  document.getElementById("cardioBox").classList.toggle("cardio-completed", checked);
   if (checked) {
     showToast(`CARDIO (${cardioState.mode}) CONCLUÍDO ✓`, 1500);
   }
 }
 
-/* REST TIMER (60s padrão) */
 function updateTimerDisplay() {
   const mins = String(Math.floor(timerSeconds / 60)).padStart(2, "0");
   const secs = String(timerSeconds % 60).padStart(2, "0");
@@ -627,8 +645,7 @@ function resetRestTimer() {
 
 function finishWorkoutSession() {
   const w = workoutData[currentWorkoutKey];
-  const history =
-    JSON.parse(localStorage.getItem("tamara_workout_history")) || [];
+  const history = JSON.parse(localStorage.getItem("tamara_workout_history")) || [];
 
   const cardioSummary = cardioState.done
     ? `${cardioState.mode} • ${cardioState.time} min (${cardioState.kcal} kcal)`
@@ -637,16 +654,26 @@ function finishWorkoutSession() {
   history.unshift({
     date: new Date().toLocaleDateString("pt-BR"),
     workout: `${w.name} (${w.tag})`,
-    cardio: cardioSummary,
+    cardio: cardioSummary
   });
 
   localStorage.setItem("tamara_workout_history", JSON.stringify(history));
+
+  w.exercises.forEach((ex) => {
+    if (activeWorkoutState[ex.id]) {
+      activeWorkoutState[ex.id].forEach((s) => {
+        s.done = false;
+      });
+    }
+  });
+  resetCardioUI();
+  resetRestTimer();
+
   showToast(`${w.name.toUpperCase()} REGISTRADO COM SUCESSO! ✓`, 2000);
   renderDashboard();
   setTimeout(() => navigateTo("homeScreen"), 700);
 }
 
-/* MEDIDAS CORPORAIS */
 function saveMeasurements() {
   const peso = document.getElementById("mPeso").value.trim();
   const torax = document.getElementById("mTorax").value.trim();
@@ -658,17 +685,7 @@ function saveMeasurements() {
   const coxaD = document.getElementById("mCoxaD").value.trim();
   const coxaE = document.getElementById("mCoxaE").value.trim();
 
-  if (
-    !peso &&
-    !torax &&
-    !cintura &&
-    !abdomen &&
-    !quadril &&
-    !bracoD &&
-    !bracoE &&
-    !coxaD &&
-    !coxaE
-  ) {
+  if (!peso && !torax && !cintura && !abdomen && !quadril && !bracoD && !bracoE && !coxaD && !coxaE) {
     showToast("PREENCHA AO MENOS UMA MEDIDA!", 1600);
     return;
   }
@@ -684,7 +701,7 @@ function saveMeasurements() {
     bracoD: bracoD || "-",
     bracoE: bracoE || "-",
     coxaD: coxaD || "-",
-    coxaE: coxaE || "-",
+    coxaE: coxaE || "-"
   });
 
   localStorage.setItem("tamara_measures_list", JSON.stringify(list));
@@ -693,10 +710,8 @@ function saveMeasurements() {
 }
 
 function renderDashboard() {
-  const history =
-    JSON.parse(localStorage.getItem("tamara_workout_history")) || [];
-  const measures =
-    JSON.parse(localStorage.getItem("tamara_measures_list")) || [];
+  const history = JSON.parse(localStorage.getItem("tamara_workout_history")) || [];
+  const measures = JSON.parse(localStorage.getItem("tamara_measures_list")) || [];
 
   document.getElementById("homeTotalSessions").textContent = history.length;
   document.getElementById("homeLastWorkout").textContent = history.length
@@ -705,9 +720,7 @@ function renderDashboard() {
 
   document.getElementById("kpiWorkouts").textContent = history.length;
   const lastWithWeight = measures.find((m) => m.peso && m.peso !== "-");
-  document.getElementById("kpiWeight").textContent = lastWithWeight
-    ? `${lastWithWeight.peso} kg`
-    : "—";
+  document.getElementById("kpiWeight").textContent = lastWithWeight ? `${lastWithWeight.peso} kg` : "—";
 
   const mListEl = document.getElementById("measuresHistoryList");
   if (!measures.length) {
@@ -726,7 +739,7 @@ function renderDashboard() {
             Braço D/E: <strong>${m.bracoD}</strong> / <strong>${m.bracoE}</strong> cm • Coxa D/E: <strong>${m.coxaD}</strong> / <strong>${m.coxaE}</strong> cm
           </div>
         </div>
-      `,
+      `
       )
       .join("");
   }
@@ -746,25 +759,20 @@ function renderDashboard() {
           </div>
           <div class="measure-history-vals">Cardio pós-treino: <strong>${h.cardio}</strong></div>
         </div>
-      `,
+      `
       )
       .join("");
   }
 }
 
-/* BACKUP JSON */
 function exportBackupJSON() {
   const payload = {
     tamara_sets_v13: JSON.parse(localStorage.getItem("tamara_sets_v13")) || {},
     tamara_prs_v13: JSON.parse(localStorage.getItem("tamara_prs_v13")) || {},
-    tamara_workout_history:
-      JSON.parse(localStorage.getItem("tamara_workout_history")) || [],
-    tamara_measures_list:
-      JSON.parse(localStorage.getItem("tamara_measures_list")) || [],
+    tamara_workout_history: JSON.parse(localStorage.getItem("tamara_workout_history")) || [],
+    tamara_measures_list: JSON.parse(localStorage.getItem("tamara_measures_list")) || []
   };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: "application/json",
-  });
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -781,26 +789,10 @@ function importBackupJSON(event) {
   reader.onload = (e) => {
     try {
       const data = JSON.parse(e.target.result);
-      if (data.tamara_sets_v13)
-        localStorage.setItem(
-          "tamara_sets_v13",
-          JSON.stringify(data.tamara_sets_v13),
-        );
-      if (data.tamara_prs_v13)
-        localStorage.setItem(
-          "tamara_prs_v13",
-          JSON.stringify(data.tamara_prs_v13),
-        );
-      if (data.tamara_workout_history)
-        localStorage.setItem(
-          "tamara_workout_history",
-          JSON.stringify(data.tamara_workout_history),
-        );
-      if (data.tamara_measures_list)
-        localStorage.setItem(
-          "tamara_measures_list",
-          JSON.stringify(data.tamara_measures_list),
-        );
+      if (data.tamara_sets_v13) localStorage.setItem("tamara_sets_v13", JSON.stringify(data.tamara_sets_v13));
+      if (data.tamara_prs_v13) localStorage.setItem("tamara_prs_v13", JSON.stringify(data.tamara_prs_v13));
+      if (data.tamara_workout_history) localStorage.setItem("tamara_workout_history", JSON.stringify(data.tamara_workout_history));
+      if (data.tamara_measures_list) localStorage.setItem("tamara_measures_list", JSON.stringify(data.tamara_measures_list));
       renderDashboard();
       showToast("BACKUP RESTAURADO COM SUCESSO ✓", 2000);
     } catch {
@@ -808,6 +800,19 @@ function importBackupJSON(event) {
     }
   };
   reader.readAsText(file);
+}
+
+function resetAllAppData() {
+  const confirmed = confirm("Deseja realmente apagar TODO o histórico de treinos, recordes, cargas salvas e medidas corporais?");
+  if (!confirmed) return;
+
+  localStorage.removeItem("tamara_sets_v13");
+  localStorage.removeItem("tamara_prs_v13");
+  localStorage.removeItem("tamara_workout_history");
+  localStorage.removeItem("tamara_measures_list");
+
+  renderDashboard();
+  showToast("TODOS OS DADOS FORAM LIMPOS 🗑️", 2000);
 }
 
 function showToast(msg, duration = 1600) {
