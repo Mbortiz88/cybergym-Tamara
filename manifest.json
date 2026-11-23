@@ -1,0 +1,18 @@
+{
+  "name": "Tamara Gomes Fitness • CyberHUD",
+  "short_name": "Tamara Fitness",
+  "description": "HUD de Treinos e Evolução Offline PWA - Tamara Gomes",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#040814",
+  "theme_color": "#040814",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./icon-512.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}
