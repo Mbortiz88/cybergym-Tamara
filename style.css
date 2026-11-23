@@ -11,6 +11,8 @@
   --neon-green: #00f57a;
   --neon-green-dim: rgba(0, 245, 122, 0.14);
   --neon-green-glow: rgba(0, 245, 122, 0.48);
+  --danger-red: #ff3b5c;
+  --danger-soft: rgba(255, 59, 92, 0.14);
   --accent-gold: #f5b041;
   --text-main: #eef6ff;
   --text-muted: #7f9bc2;
@@ -29,11 +31,7 @@ body {
   background: radial-gradient(circle at 50% 0%, #0a1b3d 0%, var(--bg-dark) 68%);
   background-color: var(--bg-dark);
   color: var(--text-main);
-  font-family:
-    "Inter",
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   min-height: 100vh;
   overflow-x: hidden;
   padding-bottom: calc(88px + env(safe-area-inset-bottom));
@@ -53,16 +51,8 @@ body {
 }
 
 @keyframes gridDrift {
-  0% {
-    background-position:
-      0 0,
-      0 0;
-  }
-  100% {
-    background-position:
-      0 32px,
-      32px 0;
-  }
+  0% { background-position: 0 0, 0 0; }
+  100% { background-position: 0 32px, 32px 0; }
 }
 
 .bg-glow {
@@ -72,26 +62,15 @@ body {
   transform: translateX(-50%);
   width: 560px;
   height: 320px;
-  background: radial-gradient(
-    circle,
-    rgba(0, 119, 255, 0.25) 0%,
-    rgba(0, 180, 255, 0.08) 45%,
-    transparent 72%
-  );
+  background: radial-gradient(circle, rgba(0, 119, 255, 0.25) 0%, rgba(0, 180, 255, 0.08) 45%, transparent 72%);
   pointer-events: none;
   z-index: 0;
   animation: pulseAura 5s ease-in-out infinite alternate;
 }
 
 @keyframes pulseAura {
-  0% {
-    opacity: 0.75;
-    transform: translateX(-50%) scale(0.96);
-  }
-  100% {
-    opacity: 1;
-    transform: translateX(-50%) scale(1.06);
-  }
+  0% { opacity: 0.75; transform: translateX(-50%) scale(0.96); }
+  100% { opacity: 1; transform: translateX(-50%) scale(1.06); }
 }
 
 /* LINHA DE VARREDURA NEON PASSANDO NA TELA */
@@ -128,20 +107,10 @@ body {
 }
 
 @keyframes hudScanSweep {
-  0% {
-    top: -6%;
-    opacity: 0;
-  }
-  8% {
-    opacity: 0.95;
-  }
-  90% {
-    opacity: 0.85;
-  }
-  100% {
-    top: 106%;
-    opacity: 0;
-  }
+  0% { top: -6%; opacity: 0; }
+  8% { opacity: 0.95; }
+  90% { opacity: 0.85; }
+  100% { top: 106%; opacity: 0; }
 }
 
 .cyber-vignette {
@@ -167,11 +136,7 @@ body {
   padding: 13px 12px 16px;
   border-bottom: 1px solid var(--border-subtle);
   margin-bottom: 16px;
-  background: linear-gradient(
-    180deg,
-    rgba(0, 82, 204, 0.14) 0%,
-    transparent 100%
-  );
+  background: linear-gradient(180deg, rgba(0, 82, 204, 0.14) 0%, transparent 100%);
   border-radius: 12px 12px 0 0;
 }
 
@@ -184,16 +149,8 @@ body {
   opacity: 0.85;
 }
 
-.hud-corner.top-left {
-  top: 4px;
-  left: 4px;
-  border-width: 2px 0 0 2px;
-}
-.hud-corner.top-right {
-  top: 4px;
-  right: 4px;
-  border-width: 2px 2px 0 0;
-}
+.hud-corner.top-left { top: 4px; left: 4px; border-width: 2px 0 0 2px; }
+.hud-corner.top-right { top: 4px; right: 4px; border-width: 2px 2px 0 0; }
 
 .brand-row {
   display: flex;
@@ -210,19 +167,12 @@ body {
 }
 
 @keyframes iconPulse {
-  0%,
-  100% {
-    transform: scale(1);
-    text-shadow: 0 0 10px var(--primary-glow);
-  }
-  50% {
-    transform: scale(1.12);
-    text-shadow: 0 0 20px #38d6ff;
-  }
+  0%, 100% { transform: scale(1); text-shadow: 0 0 10px var(--primary-glow); }
+  50% { transform: scale(1.12); text-shadow: 0 0 20px #38d6ff; }
 }
 
 .app-header h1 {
-  font-family: "Chakra Petch", sans-serif;
+  font-family: 'Chakra Petch', sans-serif;
   font-size: 1.42rem;
   font-weight: 700;
   letter-spacing: 1px;
@@ -235,7 +185,7 @@ body {
 }
 
 .brand-sub {
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.66rem;
   letter-spacing: 2px;
   color: var(--text-muted);
@@ -254,12 +204,8 @@ body {
 }
 
 @keyframes headerLaserSlide {
-  0% {
-    left: 2%;
-  }
-  100% {
-    left: 62%;
-  }
+  0% { left: 2%; }
+  100% { left: 62%; }
 }
 
 /* SCREENS */
@@ -268,19 +214,11 @@ body {
   animation: hudScreenIn 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.screen.active {
-  display: block;
-}
+.screen.active { display: block; }
 
 @keyframes hudScreenIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.99);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* HOME WORKOUT CARDS */
@@ -293,11 +231,7 @@ body {
 .workout-card {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(
-    135deg,
-    rgba(10, 25, 56, 0.94) 0%,
-    rgba(6, 14, 34, 0.96) 100%
-  );
+  background: linear-gradient(135deg, rgba(10, 25, 56, 0.94) 0%, rgba(6, 14, 34, 0.96) 100%);
   border: 1px solid var(--border-subtle);
   border-left: 3px solid var(--primary);
   border-radius: 14px;
@@ -306,23 +240,18 @@ body {
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
-  transition:
-    transform 0.16s ease,
-    border-color 0.22s ease,
-    box-shadow 0.22s ease;
+  transition: transform 0.16s ease, border-color 0.22s ease, box-shadow 0.22s ease;
   box-shadow: 0 6px 22px rgba(0, 4, 16, 0.65);
 }
 
-.workout-card:active {
-  transform: scale(0.985);
-}
+.workout-card:active { transform: scale(0.985); }
 .workout-card:hover {
   border-color: var(--primary-electric);
   box-shadow: 0 0 24px rgba(0, 180, 255, 0.24);
 }
 
 .wc-left h2 {
-  font-family: "Chakra Petch", sans-serif;
+  font-family: 'Chakra Petch', sans-serif;
   font-size: 1.24rem;
   font-weight: 700;
   color: #ffffff;
@@ -339,7 +268,7 @@ body {
   background: var(--primary-soft);
   color: var(--primary-electric);
   border: 1px solid rgba(56, 214, 255, 0.38);
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.65rem;
   font-weight: 700;
   padding: 3px 8px;
@@ -351,7 +280,7 @@ body {
   background: rgba(255, 255, 255, 0.05);
   color: #c6daf5;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.65rem;
   font-weight: 600;
   padding: 3px 8px;
@@ -362,7 +291,7 @@ body {
   background: rgba(245, 176, 65, 0.14);
   color: var(--accent-gold);
   border: 1px solid rgba(245, 176, 65, 0.35);
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.65rem;
   font-weight: 700;
   padding: 3px 8px;
@@ -395,23 +324,9 @@ body {
   gap: 12px;
 }
 
-.status-row {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.status-label {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 0.62rem;
-  color: var(--text-muted);
-  letter-spacing: 0.8px;
-}
-.status-val {
-  font-family: "Chakra Petch", sans-serif;
-  font-size: 0.98rem;
-  font-weight: 700;
-  color: var(--primary-electric);
-}
+.status-row { display: flex; flex-direction: column; gap: 3px; }
+.status-label { font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; color: var(--text-muted); letter-spacing: 0.8px; }
+.status-val { font-family: 'Chakra Petch', sans-serif; font-size: 0.98rem; font-weight: 700; color: var(--primary-electric); }
 
 /* DETAIL TOP BAR */
 .detail-top-bar {
@@ -426,7 +341,7 @@ body {
   background: rgba(0, 180, 255, 0.08);
   border: 1px solid var(--border-subtle);
   color: var(--primary-electric);
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.72rem;
   font-weight: 800;
   padding: 7px 11px;
@@ -447,7 +362,7 @@ body {
   background: rgba(245, 176, 65, 0.14);
   border: 1px solid rgba(245, 176, 65, 0.45);
   color: #ffc857;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.68rem;
   font-weight: 800;
   padding: 5px 8px;
@@ -458,7 +373,7 @@ body {
   background: var(--primary-soft);
   border: 1px solid rgba(56, 214, 255, 0.4);
   color: var(--primary-electric);
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.68rem;
   font-weight: 800;
   padding: 5px 8px;
@@ -469,7 +384,7 @@ body {
   background: var(--primary-soft);
   border: 1px solid var(--primary-electric);
   color: #ffffff;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.76rem;
   font-weight: 700;
   padding: 6px 10px;
@@ -490,13 +405,8 @@ body {
 }
 
 @keyframes dotBlink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.35;
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }
 
 .detail-header-card {
@@ -516,7 +426,7 @@ body {
 }
 
 .detail-title-row h2 {
-  font-family: "Chakra Petch", sans-serif;
+  font-family: 'Chakra Petch', sans-serif;
   font-size: 1.32rem;
   color: #ffffff;
 }
@@ -525,7 +435,7 @@ body {
   background: var(--primary-soft);
   color: var(--primary-electric);
   border: 1px solid rgba(56, 214, 255, 0.4);
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.62rem;
   font-weight: 700;
   padding: 3px 8px;
@@ -555,7 +465,7 @@ body {
 }
 
 /* =========================================================
-   CARDS DE EXERCÍCIO NO PADRÃO VISUAL DO SEU CYBERHUD
+   CARDS DE EXERCÍCIO NO PADRÃO VISUAL DO CYBERHUD
    ========================================================= */
 .exercise-list {
   display: flex;
@@ -564,29 +474,17 @@ body {
 }
 
 .hud-ex-card {
-  background: linear-gradient(
-    180deg,
-    rgba(10, 21, 44, 0.96) 0%,
-    rgba(6, 14, 32, 0.98) 100%
-  );
+  background: linear-gradient(180deg, rgba(10, 21, 44, 0.96) 0%, rgba(6, 14, 32, 0.98) 100%);
   border: 1.5px solid rgba(56, 214, 255, 0.22);
   border-radius: 16px;
   padding: 15px 14px 13px;
-  transition:
-    border-color 0.25s ease,
-    box-shadow 0.25s ease,
-    background 0.25s ease;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
   box-shadow: 0 8px 24px rgba(0, 4, 16, 0.7);
 }
 
-/* QUANDO TODAS AS SÉRIES ESTÃO CONCLUÍDAS -> BORDA E FUNDO VERDE NEON */
 .hud-ex-card.all-completed {
   border-color: var(--neon-green);
-  background: linear-gradient(
-    180deg,
-    rgba(6, 42, 34, 0.92) 0%,
-    rgba(5, 26, 26, 0.97) 100%
-  );
+  background: linear-gradient(180deg, rgba(6, 42, 34, 0.92) 0%, rgba(5, 26, 26, 0.97) 100%);
   box-shadow:
     0 0 24px rgba(0, 245, 122, 0.24),
     inset 0 0 22px rgba(0, 245, 122, 0.08);
@@ -614,7 +512,7 @@ body {
 }
 
 .hud-ex-title {
-  font-family: "Chakra Petch", sans-serif;
+  font-family: 'Chakra Petch', sans-serif;
   font-size: 1.15rem;
   font-weight: 700;
   color: #ffffff;
@@ -625,7 +523,7 @@ body {
   display: none;
   background: var(--neon-green);
   color: #031c11;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.65rem;
   font-weight: 800;
   padding: 3px 8px;
@@ -642,14 +540,8 @@ body {
 }
 
 @keyframes badgePop {
-  0% {
-    transform: scale(0.8);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
+  0% { transform: scale(0.8); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 .hud-ex-submeta {
@@ -662,7 +554,7 @@ body {
 .hud-pr-pill {
   background: linear-gradient(90deg, #ff9900, #ffb703);
   color: #140c00;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.65rem;
   font-weight: 800;
   padding: 3px 8px;
@@ -674,7 +566,7 @@ body {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: #b4cbe8;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.64rem;
   font-weight: 700;
   padding: 3px 8px;
@@ -687,13 +579,12 @@ body {
   margin-top: 2px;
 }
 
-/* CABEÇALHO DA TABELA DE SÉRIES (SÉRIE | CARGA (KG) | REPS | OK) */
 .hud-sets-columns {
   display: grid;
   grid-template-columns: 36px 1fr 1fr 40px;
   gap: 7px;
   padding: 0 4px 6px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.64rem;
   font-weight: 800;
   color: var(--text-muted);
@@ -707,7 +598,6 @@ body {
   gap: 8px;
 }
 
-/* LINHA INDIVIDUAL DE SÉRIE */
 .hud-set-row {
   display: grid;
   grid-template-columns: 36px 1fr 1fr 40px;
@@ -720,7 +610,6 @@ body {
   transition: all 0.2s ease;
 }
 
-/* SÉRIE MARCADA EM VERDE NEON */
 .hud-set-row.done {
   background: rgba(0, 245, 122, 0.11);
   border-color: var(--neon-green);
@@ -732,7 +621,7 @@ body {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.06);
   color: #a9c2e3;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.84rem;
   font-weight: 800;
   display: flex;
@@ -768,7 +657,7 @@ body {
   border: none;
   background: transparent;
   color: var(--primary-electric);
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 1.05rem;
   font-weight: 800;
   cursor: pointer;
@@ -788,7 +677,7 @@ body {
   background: transparent;
   border: none;
   color: #ffffff;
-  font-family: "Chakra Petch", sans-serif;
+  font-family: 'Chakra Petch', sans-serif;
   font-size: 1rem;
   font-weight: 700;
   text-align: center;
@@ -799,7 +688,6 @@ body {
   color: var(--primary-electric);
 }
 
-/* BOTÃO OK DA SÉRIE */
 .set-ok-btn {
   width: 38px;
   height: 38px;
@@ -823,48 +711,64 @@ body {
   box-shadow: 0 0 14px var(--neon-green-glow);
 }
 
+/* RODAPÉ DO EXERCÍCIO: BOTÕES - REMOVER SÉRIE E + SÉRIE EXTRA */
 .hud-ex-footer {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 8px;
   margin-top: 10px;
+}
+
+.btn-remove-set {
+  background: var(--danger-soft);
+  border: 1px solid rgba(255, 59, 92, 0.42);
+  color: #ff758f;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.66rem;
+  font-weight: 800;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.btn-remove-set:active {
+  transform: scale(0.95);
+  background: rgba(255, 59, 92, 0.26);
 }
 
 .btn-extra-set {
   background: rgba(0, 180, 255, 0.08);
   border: 1px solid rgba(56, 214, 255, 0.35);
   color: var(--primary-electric);
-  font-family: "JetBrains Mono", monospace;
-  font-size: 0.68rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.66rem;
   font-weight: 800;
   padding: 6px 11px;
   border-radius: 8px;
   cursor: pointer;
   letter-spacing: 0.4px;
+  transition: transform 0.15s ease;
 }
 
 .btn-extra-set:active {
-  transform: scale(0.96);
+  transform: scale(0.95);
 }
 
 /* =========================================================
-   CARDIO PÓS-TREINO EM GAVETA (IGUAL AO PRINT)
+   CARDIO PÓS-TREINO EM GAVETA
    ========================================================= */
 .cardio-hud-box {
   margin-top: 16px;
-  background: linear-gradient(
-    180deg,
-    rgba(10, 22, 46, 0.96) 0%,
-    rgba(6, 13, 30, 0.98) 100%
-  );
+  background: linear-gradient(180deg, rgba(10, 22, 46, 0.96) 0%, rgba(6, 13, 30, 0.98) 100%);
   border: 1.5px solid rgba(56, 214, 255, 0.28);
   border-left: 4px solid var(--primary);
   border-radius: 16px;
   padding: 15px 14px;
   box-shadow: 0 8px 26px rgba(0, 4, 16, 0.75);
-  transition:
-    border-color 0.25s ease,
-    box-shadow 0.25s ease;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
 .cardio-hud-box.cardio-completed {
@@ -881,7 +785,7 @@ body {
 }
 
 .cardio-hud-title {
-  font-family: "Chakra Petch", sans-serif;
+  font-family: 'Chakra Petch', sans-serif;
   font-size: 1.12rem;
   font-weight: 700;
   color: var(--primary-electric);
@@ -892,15 +796,13 @@ body {
   text-shadow: 0 0 12px rgba(56, 214, 255, 0.35);
 }
 
-.bolt-icon {
-  color: #ff9f1c;
-}
+.bolt-icon { color: #ff9f1c; }
 
 .cardio-done-toggle {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.66rem;
   font-weight: 800;
   color: #c8def7;
@@ -923,7 +825,6 @@ body {
   margin: 12px 0;
 }
 
-/* BOTÃO GAVETA DE MODALIDADE */
 .cardio-drawer-trigger {
   width: 100%;
   background: rgba(3, 9, 22, 0.85);
@@ -937,18 +838,10 @@ body {
   box-shadow: 0 0 14px rgba(0, 180, 255, 0.18);
 }
 
-.cdt-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.cdt-icon {
-  font-size: 1.2rem;
-}
-
+.cdt-left { display: flex; align-items: center; gap: 10px; }
+.cdt-icon { font-size: 1.2rem; }
 .cdt-name {
-  font-family: "Chakra Petch", sans-serif;
+  font-family: 'Chakra Petch', sans-serif;
   font-size: 1.05rem;
   font-weight: 700;
   color: #ffffff;
@@ -959,30 +852,20 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.7rem;
   font-weight: 800;
   color: var(--primary-electric);
 }
 
-.cdt-arrow {
-  font-size: 0.65rem;
-  transition: transform 0.25s ease;
-}
+.cdt-arrow { font-size: 0.65rem; transition: transform 0.25s ease; }
+.cardio-drawer-trigger.collapsed .cdt-arrow { transform: rotate(180deg); }
 
-.cardio-drawer-trigger.collapsed .cdt-arrow {
-  transform: rotate(180deg);
-}
-
-/* CONTEÚDO EXPANSÍVEL DA GAVETA */
 .cardio-drawer-panel {
   max-height: 0;
   overflow: hidden;
   opacity: 0;
-  transition:
-    max-height 0.28s ease,
-    opacity 0.22s ease,
-    margin-top 0.22s ease;
+  transition: max-height 0.28s ease, opacity 0.22s ease, margin-top 0.22s ease;
   margin-top: 0;
 }
 
@@ -1012,12 +895,9 @@ body {
   transition: all 0.18s ease;
 }
 
-.cardio-mode-btn .cm-icon {
-  font-size: 1.15rem;
-}
-
+.cardio-mode-btn .cm-icon { font-size: 1.15rem; }
 .cardio-mode-btn .cm-label {
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.56rem;
   font-weight: 800;
   color: #9bb5d6;
@@ -1025,20 +905,13 @@ body {
 }
 
 .cardio-mode-btn.active {
-  background: linear-gradient(
-    180deg,
-    rgba(0, 119, 255, 0.26) 0%,
-    rgba(0, 68, 170, 0.32) 100%
-  );
+  background: linear-gradient(180deg, rgba(0, 119, 255, 0.26) 0%, rgba(0, 68, 170, 0.32) 100%);
   border: 1.5px solid var(--primary-electric);
   box-shadow: 0 0 14px rgba(0, 180, 255, 0.28);
 }
 
-.cardio-mode-btn.active .cm-label {
-  color: #ffffff;
-}
+.cardio-mode-btn.active .cm-label { color: #ffffff; }
 
-/* CARDS DE TEMPO E CALORIAS */
 .cardio-metrics-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1057,17 +930,14 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.66rem;
   font-weight: 800;
   color: var(--primary-electric);
   margin-bottom: 8px;
 }
 
-.cmc-unit {
-  color: var(--text-muted);
-  font-size: 0.62rem;
-}
+.cmc-unit { color: var(--text-muted); font-size: 0.62rem; }
 
 .cmc-stepper {
   background: rgba(2, 7, 18, 0.85);
@@ -1086,32 +956,37 @@ body {
   border: 1px solid rgba(56, 214, 255, 0.22);
   background: rgba(0, 180, 255, 0.12);
   color: var(--primary-electric);
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 1.05rem;
   font-weight: 800;
   cursor: pointer;
 }
 
-.step-btn:active {
-  transform: scale(0.92);
-}
+.step-btn:active { transform: scale(0.92); }
 
 .step-val {
-  font-family: "Chakra Petch", sans-serif;
+  font-family: 'Chakra Petch', sans-serif;
   font-size: 1.15rem;
   font-weight: 700;
   color: #ffffff;
 }
 
+/* BOTÕES FINAIS DA TELA DE TREINO */
+.workout-bottom-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
 .btn-finish-workout {
   width: 100%;
-  margin-top: 16px;
   background: linear-gradient(135deg, #0088ff, var(--primary-deep));
   color: #ffffff;
   border: 1px solid rgba(56, 214, 255, 0.45);
   border-radius: 12px;
   padding: 15px;
-  font-family: "Chakra Petch", sans-serif;
+  font-family: 'Chakra Petch', sans-serif;
   font-size: 1.02rem;
   font-weight: 700;
   letter-spacing: 0.8px;
@@ -1120,8 +995,26 @@ body {
   transition: transform 0.15s ease;
 }
 
-.btn-finish-workout:active {
+.btn-finish-workout:active { transform: scale(0.985); }
+
+.btn-clear-workout {
+  width: 100%;
+  background: rgba(255, 59, 92, 0.1);
+  border: 1px solid rgba(255, 59, 92, 0.38);
+  color: #ff859b;
+  border-radius: 11px;
+  padding: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.btn-clear-workout:active {
   transform: scale(0.985);
+  background: rgba(255, 59, 92, 0.2);
 }
 
 /* DASHBOARD / EVOLUÇÃO */
@@ -1133,13 +1026,13 @@ body {
 }
 
 .section-heading h2 {
-  font-family: "Chakra Petch", sans-serif;
+  font-family: 'Chakra Petch', sans-serif;
   font-size: 1.15rem;
   letter-spacing: 0.6px;
 }
 
 .sub-chip {
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.64rem;
   color: var(--primary-electric);
   background: var(--primary-soft);
@@ -1165,17 +1058,8 @@ body {
   gap: 4px;
 }
 
-.kpi-label {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 0.65rem;
-  color: var(--text-muted);
-}
-.kpi-value {
-  font-family: "Chakra Petch", sans-serif;
-  font-size: 1.35rem;
-  font-weight: 700;
-  color: var(--primary-electric);
-}
+.kpi-label { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--text-muted); }
+.kpi-value { font-family: 'Chakra Petch', sans-serif; font-size: 1.35rem; font-weight: 700; color: var(--primary-electric); }
 
 .panel-card {
   background: var(--bg-card);
@@ -1186,7 +1070,7 @@ body {
 }
 
 .panel-title {
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.74rem;
   font-weight: 700;
   color: var(--primary-electric);
@@ -1201,16 +1085,8 @@ body {
   margin-bottom: 12px;
 }
 
-.measure-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.measure-field label {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  font-weight: 600;
-}
+.measure-field { display: flex; flex-direction: column; gap: 4px; }
+.measure-field label { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; }
 
 .measure-field input {
   width: 100%;
@@ -1219,7 +1095,7 @@ body {
   border-radius: 8px;
   padding: 8px 10px;
   color: #ffffff;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.85rem;
 }
 
@@ -1236,18 +1112,14 @@ body {
   border: 1px solid rgba(56, 214, 255, 0.4);
   border-radius: 10px;
   padding: 11px;
-  font-family: "Chakra Petch", sans-serif;
+  font-family: 'Chakra Petch', sans-serif;
   font-size: 0.92rem;
   font-weight: 700;
   letter-spacing: 0.6px;
   cursor: pointer;
 }
 
-.history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-}
+.history-list { display: flex; flex-direction: column; gap: 9px; }
 
 .measure-history-card {
   background: rgba(0, 119, 255, 0.05);
@@ -1259,24 +1131,16 @@ body {
 .measure-history-top {
   display: flex;
   justify-content: space-between;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.72rem;
   font-weight: 700;
   color: var(--primary-electric);
   margin-bottom: 5px;
 }
 
-.measure-history-vals {
-  font-size: 0.77rem;
-  color: #d6e6fa;
-  line-height: 1.45;
-}
+.measure-history-vals { font-size: 0.77rem; color: #d6e6fa; line-height: 1.45; }
 
-.backup-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
+.backup-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
 .btn-secondary-action {
   background: rgba(0, 180, 255, 0.12);
@@ -1284,11 +1148,31 @@ body {
   color: #ffffff;
   border-radius: 9px;
   padding: 10px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.74rem;
   font-weight: 700;
   text-align: center;
   cursor: pointer;
+}
+
+.btn-danger-reset {
+  width: 100%;
+  margin-top: 10px;
+  background: rgba(255, 59, 92, 0.12);
+  border: 1px solid rgba(255, 59, 92, 0.42);
+  color: #ff859b;
+  border-radius: 9px;
+  padding: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.73rem;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+}
+
+.btn-danger-reset:active {
+  transform: scale(0.985);
+  background: rgba(255, 59, 92, 0.22);
 }
 
 /* BOTTOM NAV */
@@ -1315,7 +1199,7 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.68rem;
   font-weight: 700;
   cursor: pointer;
@@ -1323,14 +1207,8 @@ body {
   transition: color 0.2s ease;
 }
 
-.nav-btn svg {
-  width: 21px;
-  height: 21px;
-}
-.nav-btn.active {
-  color: var(--primary-electric);
-  text-shadow: 0 0 10px rgba(0, 180, 255, 0.45);
-}
+.nav-btn svg { width: 21px; height: 21px; }
+.nav-btn.active { color: var(--primary-electric); text-shadow: 0 0 10px rgba(0, 180, 255, 0.45); }
 
 /* TOAST */
 .toast {
@@ -1341,24 +1219,17 @@ body {
   background: rgba(6, 16, 38, 0.96);
   border: 1px solid var(--primary-electric);
   color: #ffffff;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.75rem;
   font-weight: 700;
   padding: 10px 16px;
   border-radius: 10px;
-  box-shadow:
-    0 6px 24px rgba(0, 0, 0, 0.65),
-    0 0 16px rgba(0, 180, 255, 0.28);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.65), 0 0 16px rgba(0, 180, 255, 0.28);
   opacity: 0;
   pointer-events: none;
-  transition:
-    opacity 0.2s ease,
-    transform 0.2s ease;
+  transition: opacity 0.2s ease, transform 0.2s ease;
   z-index: 100;
   white-space: nowrap;
 }
 
-.toast.show {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
