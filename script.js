@@ -1,3 +1,32 @@
+/* =========================================================
+   CONFIGURAÇÃO DO FIREBASE (PROJETO: cybergym-matheus-ortiz)
+   ========================================================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyAoT05zjZH9W9fdmNeCGCppJwGeEJTxXos",
+  authDomain: "cybergym-matheus-ortiz.firebaseapp.com",
+  projectId: "cybergym-matheus-ortiz",
+  storageBucket: "cybergym-matheus-ortiz.firebasestorage.app",
+  messagingSenderId: "867243931319",
+  appId: "1:867243931319:web:e666e71d57ab6e024a7f32",
+};
+
+let fbAuth = null;
+let fbDb = null;
+let currentCloudUser = null;
+let isSyncing = false;
+
+try {
+  if (typeof firebase !== "undefined") {
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    fbAuth = firebase.auth();
+    fbDb = firebase.firestore();
+  }
+} catch (e) {
+  console.warn("Erro ao iniciar Firebase:", e);
+}
+
 const workoutData = {
   A: {
     id: "A",
@@ -305,6 +334,178 @@ function brToISO(br) {
   if (parts.length !== 3) return "";
   return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
 }
+
+/* =========================================================
+   CAMADA DE SINCRONIZAÇÃO NUVEM (FIREBASE AUTH + FIRESTORE)
+   ========================================================= */
+function collectLocalPayload() {
+  const payload = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith("tamara_") && key !== "tamara_last_local_update") {
+      payload[key] = localStorage.getItem(key);
+    }
+  }
+  return payload;
+}
+
+function updateCloudUI(user, statusText) {
+  const statusBadge = document.getElementById("cloudSyncStatus");
+  const userInfoEl = document.getElementById("cloudUserInfo");
+  const loggedOutBox = document.getElementById("cloudLoggedOutActions");
+  const loggedInBox = document.getElementById("cloudLoggedInActions");
+
+  if (!statusBadge || !userInfoEl) return;
+
+  if (user) {
+    statusBadge.textContent = statusText || "CONECTADO ✓";
+    statusBadge.classList.add("active-checkin");
+    userInfoEl.innerHTML = `Logada como <strong>${user.displayName || user.email}</strong> (${user.email}).<br/>Seus treinos e medidas são salvos na nuvem automaticamente.`;
+    if (loggedOutBox) loggedOutBox.style.display = "none";
+    if (loggedInBox) loggedInBox.style.display = "grid";
+  } else {
+    statusBadge.textContent = "OFFLINE / LOCAL";
+    statusBadge.classList.remove("active-checkin");
+    userInfoEl.textContent =
+      "Conecte sua conta Google para salvar treinos, check-ins, cargas e medidas automaticamente na nuvem.";
+    if (loggedOutBox) loggedOutBox.style.display = "block";
+    if (loggedInBox) loggedInBox.style.display = "none";
+  }
+}
+
+async function loginWithGoogle() {
+  if (!fbAuth) {
+    showToast("ERRO AO INICIAR FIREBASE", 2400);
+    return;
+  }
+  try {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    await fbAuth.signInWithPopup(provider);
+    showToast("CONTA GOOGLE CONECTADA ✓", 2000);
+  } catch (err) {
+    console.error("Erro no login Google:", err);
+    showToast("ERRO AO CONECTAR CONTA GOOGLE", 2400);
+  }
+}
+
+async function logoutGoogle() {
+  if (!fbAuth) return;
+  try {
+    await fbAuth.signOut();
+    currentCloudUser = null;
+    updateCloudUI(null);
+    showToast("DESCONECTADA DA NUVEM", 1800);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+async function pushToFirestore(silent = true) {
+  if (!fbDb || !currentCloudUser || isSyncing) return;
+  if (!navigator.onLine) {
+    updateCloudUI(currentCloudUser, "OFFLINE (SALVO LOCAL)");
+    return;
+  }
+
+  try {
+    isSyncing = true;
+    updateCloudUI(currentCloudUser, "SINCRONIZANDO...");
+    const payload = collectLocalPayload();
+    const nowTs = Date.now();
+    localStorage.setItem("tamara_last_local_update", String(nowTs));
+
+    await fbDb.collection("users").doc(currentCloudUser.uid).set(
+      {
+        email: currentCloudUser.email || "",
+        displayName: currentCloudUser.displayName || "",
+        updatedAt: nowTs,
+        payload: payload,
+      },
+      { merge: true },
+    );
+
+    const timeStr = new Date().toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    updateCloudUI(currentCloudUser, `NUVEM OK • ${timeStr}`);
+    if (!silent) showToast("NUVEM SINCRONIZADA COM SUCESSO ☁️", 2000);
+  } catch (err) {
+    console.error("Erro ao enviar para Firestore:", err);
+    updateCloudUI(currentCloudUser, "ERRO DE REDE (LOCAL OK)");
+    if (!silent) showToast("FALHA NA REDE. DADOS SALVOS NO APARELHO.", 2400);
+  } finally {
+    isSyncing = false;
+  }
+}
+
+async function pullFromFirestore(forceOverwrite = false) {
+  if (!fbDb || !currentCloudUser || !navigator.onLine) return;
+
+  try {
+    updateCloudUI(currentCloudUser, "VERIFICANDO NUVEM...");
+    const docRef = fbDb.collection("users").doc(currentCloudUser.uid);
+    const snap = await docRef.get();
+
+    if (!snap.exists) {
+      await pushToFirestore(true);
+      return;
+    }
+
+    const remoteData = snap.data();
+    const remoteUpdated = Number(remoteData.updatedAt) || 0;
+    const localUpdated =
+      Number(localStorage.getItem("tamara_last_local_update")) || 0;
+
+    if (forceOverwrite || remoteUpdated > localUpdated) {
+      if (remoteData.payload && typeof remoteData.payload === "object") {
+        Object.keys(remoteData.payload).forEach((key) => {
+          if (key.startsWith("tamara_")) {
+            localStorage.setItem(key, remoteData.payload[key]);
+          }
+        });
+        localStorage.setItem(
+          "tamara_last_local_update",
+          String(remoteUpdated),
+        );
+        renderWorkoutCards();
+        renderDashboard();
+      }
+    } else if (localUpdated > remoteUpdated) {
+      await pushToFirestore(true);
+    }
+
+    const timeStr = new Date().toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    updateCloudUI(currentCloudUser, `NUVEM OK • ${timeStr}`);
+  } catch (err) {
+    console.error("Erro ao buscar dados do Firestore:", err);
+    updateCloudUI(currentCloudUser, "OFFLINE / LOCAL");
+  }
+}
+
+async function manualCloudSync() {
+  if (!currentCloudUser) return;
+  await pushToFirestore(false);
+}
+
+if (fbAuth) {
+  fbAuth.onAuthStateChanged(async (user) => {
+    currentCloudUser = user;
+    updateCloudUI(user);
+    if (user) {
+      await pullFromFirestore(false);
+    }
+  });
+}
+
+window.addEventListener("online", () => {
+  if (currentCloudUser) {
+    pushToFirestore(true);
+  }
+});
 
 function initApp() {
   try {
@@ -774,6 +975,7 @@ function clearCurrentWorkout() {
   clearSavedActiveSession();
   renderExerciseCards();
   updateWorkoutTopMetrics();
+  pushToFirestore(true);
   showToast("SÉRIES E CARDIO DESMARCADOS ↺", 1600);
 }
 
@@ -909,6 +1111,7 @@ function finishWorkoutSession() {
   calViewYear = new Date().getFullYear();
   calViewMonth = new Date().getMonth();
 
+  pushToFirestore(true);
   showToast(`CHECK-IN ${w.name.toUpperCase()} REGISTRADO! ✓`, 2000);
   renderDashboard();
   setTimeout(() => navigateTo("dashboardScreen"), 650);
@@ -971,6 +1174,7 @@ function saveManualCheckin() {
   selectedCalDateISO = dateISO;
 
   renderDashboard();
+  pushToFirestore(true);
   showToast(`CHECK-IN "${cleanLabel.toUpperCase()}" SALVO ✓`, 2000);
 }
 
@@ -1187,6 +1391,7 @@ function saveMeasurements() {
 
   localStorage.setItem("tamara_measures_list", JSON.stringify(list));
   renderDashboard();
+  pushToFirestore(true);
   showToast("MEDIDAS SALVAS COM SUCESSO ✓", 1800);
 }
 
@@ -1303,6 +1508,7 @@ function importBackupJSON(event) {
           JSON.stringify(data.tamara_measures_list),
         );
       renderDashboard();
+      pushToFirestore(true);
       showToast("BACKUP RESTAURADO COM SUCESSO ✓", 2000);
     } catch {
       showToast("ARQUIVO JSON INVÁLIDO!", 1800);
@@ -1326,6 +1532,7 @@ function resetAllAppData() {
 
   renderWorkoutCards();
   renderDashboard();
+  pushToFirestore(true);
   showToast("TODOS OS DADOS FORAM LIMPOS 🗑️", 2000);
 }
 
