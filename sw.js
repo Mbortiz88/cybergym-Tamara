@@ -1,4 +1,4 @@
-const CACHE_NAME = "tamara-cybergym-hud-v1.8.2";
+const CACHE_NAME = "tamara-cybergym-hud-v1.8.3";
 const ASSETS = [
   "./",
   "./index.html",
@@ -31,13 +31,20 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
+  // Não intercepta chamadas externas (Firebase Auth, Firestore, Google APIs)
+  if (!event.request.url.startsWith(self.location.origin)) {
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
       .then((res) => {
-        const clone = res.clone();
-        caches
-          .open(CACHE_NAME)
-          .then((cache) => cache.put(event.request, clone));
+        if (event.request.method === "GET") {
+          const clone = res.clone();
+          caches
+            .open(CACHE_NAME)
+            .then((cache) => cache.put(event.request, clone));
+        }
         return res;
       })
       .catch(() => caches.match(event.request)),
