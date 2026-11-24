@@ -301,6 +301,50 @@
           </div>
         </div>
 
+        <!-- SINCRONIZAÇÃO NUVEM (FIREBASE GOOGLE) -->
+        <div class="panel-card" id="cloudSyncCard">
+          <div class="cal-top-header" style="margin-bottom: 8px">
+            <div class="panel-title" style="margin-bottom: 0">
+              ☁️ NUVEM &amp; CONTA GOOGLE
+            </div>
+            <span class="cdd-badge" id="cloudSyncStatus">OFFLINE / LOCAL</span>
+          </div>
+          <p class="manual-hint" id="cloudUserInfo" style="margin-bottom: 10px">
+            Conecte sua conta Google para salvar treinos, check-ins, cargas e
+            medidas automaticamente na nuvem.
+          </p>
+          <div id="cloudLoggedOutActions">
+            <button
+              type="button"
+              class="btn-primary-action"
+              onclick="loginWithGoogle()"
+            >
+              🔐 ENTRAR COM GOOGLE
+            </button>
+          </div>
+          <div
+            class="backup-actions"
+            id="cloudLoggedInActions"
+            style="display: none"
+          >
+            <button
+              type="button"
+              class="btn-secondary-action"
+              onclick="manualCloudSync()"
+            >
+              🔄 SINCRONIZAR AGORA
+            </button>
+            <button
+              type="button"
+              class="btn-danger-reset"
+              style="margin-top: 0"
+              onclick="logoutGoogle()"
+            >
+              SAIR DA CONTA
+            </button>
+          </div>
+        </div>
+
         <!-- CALENDÁRIO ESTILO GYMRATS -->
         <div class="panel-card gymrats-cal-card">
           <div class="cal-top-header">
@@ -572,6 +616,9 @@
     </div>
 
     <div id="toast" class="toast"></div>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
     <script src="script.js?v=1.8.1"></script>
   </body>
 </html>
