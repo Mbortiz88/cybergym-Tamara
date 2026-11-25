@@ -13,7 +13,7 @@
     />
     <meta name="apple-mobile-web-app-title" content="Tamara Fitness" />
     <meta name="theme-color" content="#040814" />
-    <title>Tamara Gomes Fitness • CyberHUD v1.8</title>
+    <title>Tamara Gomes Fitness • CyberHUD v1.9</title>
     <link rel="manifest" href="manifest.json" />
     <link rel="apple-touch-icon" href="icon-512.png" />
     <link rel="icon" type="image/png" href="icon-512.png" />
@@ -23,7 +23,7 @@
       href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,500;0,600;0,700;1,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="style.css?v=1.8.4" />
+    <link rel="stylesheet" href="style.css?v=1.9.0" />
   </head>
   <body>
     <div class="bg-grid"></div>
@@ -40,13 +40,12 @@
           <span class="brand-icon">⚡</span>
           <h1>TAMARA GOMES <span>FITNESS</span></h1>
         </div>
-        <div class="brand-sub">CYBERHUD V1.8 // CLOUD SYNC EDITION</div>
+        <div class="brand-sub">CYBERHUD V1.9 // CLOUD + PHOTO CHECK-IN</div>
         <div class="header-laser-bar"></div>
       </header>
 
       <!-- SCREEN: TREINOS (HOME) -->
       <main id="homeScreen" class="screen active">
-        <!-- BANNER DE TREINO EM ANDAMENTO -->
         <div
           id="resumeWorkoutBanner"
           class="resume-banner"
@@ -114,7 +113,7 @@
           </div>
         </div>
 
-        <!-- LISTA DE EXERCÍCIOS NO PADRÃO CYBERHUD -->
+        <!-- LISTA DE EXERCÍCIOS -->
         <div id="exerciseListContainer" class="exercise-list"></div>
 
         <!-- CARDIO PÓS-TREINO EM GAVETA -->
@@ -135,7 +134,6 @@
 
           <div class="cardio-divider"></div>
 
-          <!-- BOTÃO GAVETA DE MODALIDADE -->
           <button
             type="button"
             class="cardio-drawer-trigger"
@@ -152,7 +150,6 @@
             </div>
           </button>
 
-          <!-- GAVETA EXPANSÍVEL COM AS 6 MODALIDADES -->
           <div class="cardio-drawer-panel open" id="cardioDrawerPanel">
             <div class="cardio-modes-grid" id="cardioModesGrid">
               <button
@@ -208,17 +205,16 @@
               <button
                 type="button"
                 class="cardio-mode-btn"
-                data-mode="FITDANCE"
+                data-mode="DANÇA"
                 data-icon="💃"
-                onclick="selectCardioMode('FITDANCE', '💃')"
+                onclick="selectCardioMode('DANÇA', '💃')"
               >
                 <span class="cm-icon">💃</span>
-                <span class="cm-label">FITDANCE</span>
+                <span class="cm-label">DANÇA</span>
               </button>
             </div>
           </div>
 
-          <!-- CONTROLES DE TEMPO E CALORIAS -->
           <div class="cardio-metrics-grid">
             <div class="cardio-metric-card">
               <div class="cmc-header">
@@ -270,6 +266,41 @@
           </div>
         </div>
 
+        <!-- FOTO DO CHECK-IN DO TREINO -->
+        <div class="photo-checkin-box">
+          <div class="pcb-top">
+            <span class="pcb-title">📸 FOTO DO CHECK-IN (OPCIONAL)</span>
+            <label class="btn-photo-pick">
+              📷 TIRAR / ESCOLHER FOTO
+              <input
+                type="file"
+                accept="image/*"
+                id="workoutPhotoInput"
+                onchange="handleCheckinPhotoSelect(event, 'workout')"
+                hidden
+              />
+            </label>
+          </div>
+          <div
+            class="photo-preview-wrap"
+            id="workoutPhotoPreviewWrap"
+            style="display: none"
+          >
+            <img
+              id="workoutPhotoPreviewImg"
+              src=""
+              alt="Prévia da foto do treino"
+            />
+            <button
+              type="button"
+              class="btn-remove-photo"
+              onclick="clearSelectedPhoto('workout')"
+            >
+              ✕ REMOVER FOTO
+            </button>
+          </div>
+        </div>
+
         <!-- AÇÕES FINAIS DO TREINO -->
         <div class="workout-bottom-actions">
           <button
@@ -306,8 +337,8 @@
           </div>
 
           <p class="cloud-user-desc" id="cloudUserInfo">
-            Conecte sua conta Google para salvar treinos, check-ins, cargas e
-            medidas automaticamente na nuvem.
+            Conecte sua conta Google para salvar treinos, fotos, check-ins,
+            cargas e medidas automaticamente na nuvem.
           </p>
 
           <div id="cloudLoggedOutActions">
@@ -425,8 +456,8 @@
               <span class="cdd-badge" id="cddStatusBadge">CHECK-IN</span>
             </div>
             <div id="cddContent" class="cdd-content">
-              Toque em qualquer dia marcado em neon para ver qual treino ou
-              atividade foi realizada.
+              Toque em qualquer dia marcado em neon para ver qual treino, foto
+              ou atividade foi realizada.
             </div>
           </div>
         </div>
@@ -437,8 +468,8 @@
             ⚡ CHECK-IN MANUAL (OUTROS TREINOS / ESPORTES)
           </div>
           <p class="manual-hint">
-            Registre vôlei, futebol, beach tennis, trilha, luta ou qualquer
-            atividade extra no calendário.
+            Registre vôlei, futebol, beach tennis, trilha, dança ou qualquer
+            atividade extra com foto no calendário.
           </p>
 
           <div class="quick-sport-chips">
@@ -473,9 +504,9 @@
             <button
               type="button"
               class="sport-chip"
-              onclick="applyQuickSport('FITDANCE', '💃')"
+              onclick="applyQuickSport('Dança', '💃')"
             >
-              💃 FITDANCE
+              💃 Dança
             </button>
             <button
               type="button"
@@ -510,6 +541,38 @@
                 id="mcNote"
                 placeholder="Ex.: Jogo na quadra"
               />
+            </div>
+          </div>
+
+          <!-- FOTO DO CHECK-IN AVULSO -->
+          <div class="manual-photo-row">
+            <label class="btn-photo-pick full-width-btn">
+              📸 ADICIONAR FOTO DO TREINO / ATIVIDADE
+              <input
+                type="file"
+                accept="image/*"
+                id="manualPhotoInput"
+                onchange="handleCheckinPhotoSelect(event, 'manual')"
+                hidden
+              />
+            </label>
+            <div
+              class="photo-preview-wrap"
+              id="manualPhotoPreviewWrap"
+              style="display: none"
+            >
+              <img
+                id="manualPhotoPreviewImg"
+                src=""
+                alt="Prévia da foto avulsa"
+              />
+              <button
+                type="button"
+                class="btn-remove-photo"
+                onclick="clearSelectedPhoto('manual')"
+              >
+                ✕ REMOVER FOTO
+              </button>
             </div>
           </div>
 
@@ -645,13 +708,35 @@
       </nav>
     </div>
 
+    <!-- MODAL LIGHTBOX PARA AMPLIAR FOTO DO CHECK-IN -->
+    <div
+      id="photoLightboxModal"
+      class="photo-lightbox"
+      onclick="closePhotoLightbox()"
+    >
+      <div class="plb-inner" onclick="event.stopPropagation()">
+        <div class="plb-header">
+          <span id="plbTitle">CHECK-IN</span>
+          <button
+            type="button"
+            class="plb-close"
+            onclick="closePhotoLightbox()"
+          >
+            ✕
+          </button>
+        </div>
+        <img id="plbImage" src="" alt="Foto do Check-in" />
+        <p id="plbCaption" class="plb-caption"></p>
+      </div>
+    </div>
+
     <div id="toast" class="toast"></div>
 
-    <!-- FIREBASE SDK (COMPAT MODE PARA firebase.auth() E firebase.firestore()) -->
+    <!-- FIREBASE SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
-    <script src="script.js?v=1.8.4"></script>
+    <script src="script.js?v=1.9.0"></script>
   </body>
 </html>
