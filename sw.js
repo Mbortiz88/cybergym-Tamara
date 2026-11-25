@@ -1,9 +1,9 @@
-const CACHE_NAME = "tamara-cybergym-hud-v1.8.3";
+const CACHE_NAME = "tamara-cybergym-hud-v1.8.4";
 const ASSETS = [
   "./",
   "./index.html",
-  "./style.css?v=1.8.2",
-  "./script.js?v=1.8.1",
+  "./style.css?v=1.8.4",
+  "./script.js?v=1.8.4",
   "./manifest.json",
   "./icon-512.png",
 ];
@@ -31,6 +31,14 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
+  if (
+    event.request.url.includes("googleapis.com") ||
+    event.request.url.includes("gstatic.com") ||
+    event.request.url.includes("firebase")
+  ) {
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
       .then((res) => {
