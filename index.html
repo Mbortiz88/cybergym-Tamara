@@ -23,7 +23,7 @@
       href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,500;0,600;0,700;1,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="style.css?v=1.8.2" />
+    <link rel="stylesheet" href="style.css?v=1.8.4" />
   </head>
   <body>
     <div class="bg-grid"></div>
@@ -40,7 +40,7 @@
           <span class="brand-icon">⚡</span>
           <h1>TAMARA GOMES <span>FITNESS</span></h1>
         </div>
-        <div class="brand-sub">CYBERHUD V1.8 // OFFLINE PWA EDITION</div>
+        <div class="brand-sub">CYBERHUD V1.8 // CLOUD SYNC EDITION</div>
         <div class="header-laser-bar"></div>
       </header>
 
@@ -293,7 +293,71 @@
       <main id="dashboardScreen" class="screen">
         <div class="section-heading">
           <h2>EVOLUÇÃO &amp; CHECK-INS</h2>
-          <span class="sub-chip">DADOS LOCAIS</span>
+          <span class="sub-chip">CLOUD + LOCAL</span>
+        </div>
+
+        <!-- CARD DE LOGIN E SINCRONIZAÇÃO FIREBASE -->
+        <div class="panel-card cloud-sync-card">
+          <div class="cloud-header-row">
+            <div class="panel-title" style="margin-bottom: 0">
+              ☁️ CONTA &amp; SINCRONIZAÇÃO NA NUVEM
+            </div>
+            <span class="cdd-badge" id="cloudSyncStatus">OFFLINE / LOCAL</span>
+          </div>
+
+          <p class="cloud-user-desc" id="cloudUserInfo">
+            Conecte sua conta Google para salvar treinos, check-ins, cargas e
+            medidas automaticamente na nuvem.
+          </p>
+
+          <div id="cloudLoggedOutActions">
+            <button
+              type="button"
+              class="btn-google-login"
+              onclick="loginWithGoogle()"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path
+                  fill="#4285F4"
+                  d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96z"
+                />
+              </svg>
+              ENTRAR COM GOOGLE
+            </button>
+          </div>
+
+          <div
+            id="cloudLoggedInActions"
+            class="cloud-logged-in-grid"
+            style="display: none"
+          >
+            <button
+              type="button"
+              class="btn-secondary-action"
+              onclick="manualCloudSync()"
+            >
+              🔄 SINCRONIZAR AGORA
+            </button>
+            <button
+              type="button"
+              class="btn-cloud-logout"
+              onclick="logoutGoogle()"
+            >
+              SAIR DA CONTA
+            </button>
+          </div>
         </div>
 
         <div class="kpi-grid kpi-grid-3">
@@ -582,6 +646,12 @@
     </div>
 
     <div id="toast" class="toast"></div>
-    <script src="script.js?v=1.8.1"></script>
+
+    <!-- FIREBASE SDK (COMPAT MODE PARA firebase.auth() E firebase.firestore()) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+    <script src="script.js?v=1.8.4"></script>
   </body>
 </html>
