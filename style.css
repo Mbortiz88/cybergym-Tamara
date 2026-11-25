@@ -1122,6 +1122,66 @@ body {
   cursor: pointer;
 }
 
+/* CLOUD SYNC CARD (FIREBASE) */
+.cloud-sync-card {
+  border-color: rgba(56, 214, 255, 0.38);
+  background: linear-gradient(
+    135deg,
+    rgba(9, 24, 52, 0.96) 0%,
+    rgba(6, 15, 34, 0.98) 100%
+  );
+}
+.cloud-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.cloud-user-desc {
+  font-size: 0.76rem;
+  color: #c2daf5;
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+.btn-google-login {
+  width: 100%;
+  background: #ffffff;
+  color: #0b162c;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 4px 18px rgba(0, 180, 255, 0.25);
+}
+.btn-google-login:active {
+  transform: scale(0.985);
+}
+.cloud-logged-in-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 8px;
+}
+.btn-cloud-logout {
+  background: rgba(255, 59, 92, 0.12);
+  border: 1px solid rgba(255, 59, 92, 0.42);
+  color: #ff859b;
+  border-radius: 9px;
+  padding: 10px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 /* DASHBOARD + CALENDÁRIO GYMRATS */
 .section-heading {
   display: flex;
