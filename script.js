@@ -294,6 +294,9 @@ let cardioState = {
   done: false,
 };
 
+let pendingWorkoutPhoto = "";
+let pendingManualPhoto = "";
+
 let timerSeconds = 60;
 let timerInterval = null;
 let timerRunning = false;
@@ -336,13 +339,105 @@ function brToISO(br) {
 }
 
 /* =========================================================
+   COMPRESSÃO E PRÉ-VISUALIZAÇÃO DE FOTO DO CHECK-IN
+   ========================================================= */
+function compressImageToDataURL(file, maxWidth = 640, quality = 0.72) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Erro ao ler imagem"));
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Imagem inválida"));
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleCheckinPhotoSelect(event, context) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  try {
+    showToast("PROCESSANDO FOTO...", 1200);
+    const compressedDataUrl = await compressImageToDataURL(file, 640, 0.72);
+
+    if (context === "workout") {
+      pendingWorkoutPhoto = compressedDataUrl;
+      document.getElementById("workoutPhotoPreviewImg").src = compressedDataUrl;
+      document.getElementById("workoutPhotoPreviewWrap").style.display =
+        "block";
+    } else {
+      pendingManualPhoto = compressedDataUrl;
+      document.getElementById("manualPhotoPreviewImg").src = compressedDataUrl;
+      document.getElementById("manualPhotoPreviewWrap").style.display = "block";
+    }
+    showToast("FOTO ANEXADA ✓", 1500);
+  } catch (err) {
+    console.error(err);
+    showToast("NÃO FOI POSSÍVEL CARREGAR A FOTO", 2000);
+  }
+}
+
+function clearSelectedPhoto(context) {
+  if (context === "workout") {
+    pendingWorkoutPhoto = "";
+    const input = document.getElementById("workoutPhotoInput");
+    if (input) input.value = "";
+    const wrap = document.getElementById("workoutPhotoPreviewWrap");
+    if (wrap) wrap.style.display = "none";
+  } else {
+    pendingManualPhoto = "";
+    const input = document.getElementById("manualPhotoInput");
+    if (input) input.value = "";
+    const wrap = document.getElementById("manualPhotoPreviewWrap");
+    if (wrap) wrap.style.display = "none";
+  }
+}
+
+function openPhotoLightboxByIndex(historyIndex) {
+  const history = safeReadJSON("tamara_workout_history", []);
+  const item = history[historyIndex];
+  if (!item || !item.photo) return;
+
+  document.getElementById("plbTitle").textContent =
+    `${item.date || ""} • ${String(item.workout || "").split(" (")[0]}`;
+  document.getElementById("plbImage").src = item.photo;
+  document.getElementById("plbCaption").textContent =
+    item.cardio || item.workout || "";
+  document.getElementById("photoLightboxModal").classList.add("open");
+}
+
+function closePhotoLightbox() {
+  document.getElementById("photoLightboxModal").classList.remove("open");
+}
+
+/* =========================================================
    CAMADA DE SINCRONIZAÇÃO NUVEM (FIREBASE AUTH + FIRESTORE)
    ========================================================= */
 function collectLocalPayload() {
   const payload = {};
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (key && key.startsWith("tamara_") && key !== "tamara_last_local_update") {
+    if (
+      key &&
+      key.startsWith("tamara_") &&
+      key !== "tamara_last_local_update"
+    ) {
       payload[key] = localStorage.getItem(key);
     }
   }
@@ -360,14 +455,14 @@ function updateCloudUI(user, statusText) {
   if (user) {
     statusBadge.textContent = statusText || "CONECTADO ✓";
     statusBadge.classList.add("active-checkin");
-    userInfoEl.innerHTML = `Logada como <strong>${user.displayName || user.email}</strong> (${user.email}).<br/>Seus treinos e medidas são salvos na nuvem automaticamente.`;
+    userInfoEl.innerHTML = `Logada como <strong>${user.displayName || user.email}</strong> (${user.email}).<br/>Seus treinos, fotos e medidas são salvos na nuvem automaticamente.`;
     if (loggedOutBox) loggedOutBox.style.display = "none";
     if (loggedInBox) loggedInBox.style.display = "grid";
   } else {
     statusBadge.textContent = "OFFLINE / LOCAL";
     statusBadge.classList.remove("active-checkin");
     userInfoEl.textContent =
-      "Conecte sua conta Google para salvar treinos, check-ins, cargas e medidas automaticamente na nuvem.";
+      "Conecte sua conta Google para salvar treinos, fotos, check-ins, cargas e medidas automaticamente na nuvem.";
     if (loggedOutBox) loggedOutBox.style.display = "block";
     if (loggedInBox) loggedInBox.style.display = "none";
   }
@@ -414,15 +509,18 @@ async function pushToFirestore(silent = true) {
     const nowTs = Date.now();
     localStorage.setItem("tamara_last_local_update", String(nowTs));
 
-    await fbDb.collection("users").doc(currentCloudUser.uid).set(
-      {
-        email: currentCloudUser.email || "",
-        displayName: currentCloudUser.displayName || "",
-        updatedAt: nowTs,
-        payload: payload,
-      },
-      { merge: true },
-    );
+    await fbDb
+      .collection("users")
+      .doc(currentCloudUser.uid)
+      .set(
+        {
+          email: currentCloudUser.email || "",
+          displayName: currentCloudUser.displayName || "",
+          updatedAt: nowTs,
+          payload: payload,
+        },
+        { merge: true },
+      );
 
     const timeStr = new Date().toLocaleTimeString("pt-BR", {
       hour: "2-digit",
@@ -464,10 +562,7 @@ async function pullFromFirestore(forceOverwrite = false) {
             localStorage.setItem(key, remoteData.payload[key]);
           }
         });
-        localStorage.setItem(
-          "tamara_last_local_update",
-          String(remoteUpdated),
-        );
+        localStorage.setItem("tamara_last_local_update", String(remoteUpdated));
         renderWorkoutCards();
         renderDashboard();
       }
@@ -669,6 +764,7 @@ function openWorkout(key, isRestoring = false) {
   if (!w) return;
 
   currentWorkoutKey = key;
+  clearSelectedPhoto("workout");
   const savedSetsStore = safeReadJSON("tamara_sets_v13", {});
   const savedSession = getSavedActiveSession();
 
@@ -970,6 +1066,7 @@ function clearCurrentWorkout() {
       });
     }
   });
+  clearSelectedPhoto("workout");
   resetCardioUI();
   resetRestTimer();
   clearSavedActiveSession();
@@ -1091,12 +1188,14 @@ function finishWorkoutSession() {
     workout: `${w.name} (${w.tag})`,
     volumeKg: Math.round(totalVolume),
     cardio: cardioSummary,
+    photo: pendingWorkoutPhoto || "",
     isManual: false,
   });
 
   localStorage.setItem("tamara_workout_history", JSON.stringify(history));
 
   clearSavedActiveSession();
+  clearSelectedPhoto("workout");
   w.exercises.forEach((ex) => {
     if (activeWorkoutState[ex.id]) {
       activeWorkoutState[ex.id].forEach((s) => {
@@ -1157,6 +1256,7 @@ function saveManualCheckin() {
     workout: `${rawActivity} (CHECK-IN MANUAL)`,
     volumeKg: 0,
     cardio: detailsText,
+    photo: pendingManualPhoto || "",
     isManual: true,
   });
 
@@ -1165,6 +1265,7 @@ function saveManualCheckin() {
   document.getElementById("mcActivity").value = "";
   document.getElementById("mcDuration").value = "";
   document.getElementById("mcNote").value = "";
+  clearSelectedPhoto("manual");
 
   const [y, m] = dateISO.split("-").map(Number);
   if (y && m) {
@@ -1261,12 +1362,12 @@ function renderGymRatsCalendar() {
     `${monthNames[calViewMonth]} ${calViewYear}`;
 
   const checkinsMap = {};
-  history.forEach((h) => {
+  history.forEach((h, idx) => {
     if (!h) return;
     const iso = h.isoDate || brToISO(h.date);
     if (!iso) return;
     if (!checkinsMap[iso]) checkinsMap[iso] = [];
-    checkinsMap[iso].push(h);
+    checkinsMap[iso].push({ ...h, _histIndex: idx });
   });
 
   const firstDayWeekday = new Date(calViewYear, calViewMonth, 1).getDay();
@@ -1291,6 +1392,12 @@ function renderGymRatsCalendar() {
     const isToday = iso === todayISO;
     const isSelected = iso === selectedCalDateISO;
 
+    const itemWithPhoto = dayLogs.find((item) => Boolean(item.photo));
+    const hasPhoto = Boolean(itemWithPhoto);
+    const cellBgStyle = hasPhoto
+      ? `style="background-image: url('${itemWithPhoto.photo}')"`
+      : "";
+
     let badgeText = "";
     if (hasCheckin) {
       const labels = dayLogs.map((item) => {
@@ -1311,7 +1418,8 @@ function renderGymRatsCalendar() {
 
     cellsHTML += `
       <div
-        class="cal-day-cell ${hasCheckin ? "checked-in" : ""} ${isToday ? "today" : ""} ${isSelected ? "selected-day" : ""}"
+        class="cal-day-cell ${hasCheckin ? "checked-in" : ""} ${hasPhoto ? "has-photo" : ""} ${isToday ? "today" : ""} ${isSelected ? "selected-day" : ""}"
+        ${cellBgStyle}
         onclick="selectCalendarDay('${iso}')"
       >
         <span class="day-num">${day}</span>
@@ -1335,12 +1443,17 @@ function renderGymRatsCalendar() {
     badgeEl.classList.add("active-checkin");
     contentEl.innerHTML = selLogs
       .map((l) => {
+        const photoHTML = l.photo
+          ? `<img class="cdd-photo-thumb" src="${l.photo}" alt="Foto do treino" onclick="openPhotoLightboxByIndex(${l._histIndex})" /><div class="cdd-photo-hint">🔍 Toque na foto para ampliar</div>`
+          : "";
         if (l.isManual) {
-          return `• <strong>${l.workout}</strong><br/>&nbsp;&nbsp;Detalhes: ${l.cardio || ""}`;
+          return `<div>• <strong>${l.workout}</strong><br/>&nbsp;&nbsp;Detalhes: ${l.cardio || ""}${photoHTML}</div>`;
         }
-        return `• <strong>${l.workout}</strong>${l.volumeKg ? ` (${l.volumeKg} kg movidos)` : ""}<br/>&nbsp;&nbsp;Cardio: ${l.cardio || ""}`;
+        return `<div>• <strong>${l.workout}</strong>${l.volumeKg ? ` (${l.volumeKg} kg movidos)` : ""}<br/>&nbsp;&nbsp;Cardio: ${l.cardio || ""}${photoHTML}</div>`;
       })
-      .join("<br/>");
+      .join(
+        "<hr style='border:0;border-top:1px solid rgba(56,214,255,0.12);margin:8px 0;'/>",
+      );
   } else {
     badgeEl.textContent = "SEM CHECK-IN";
     badgeEl.classList.remove("active-checkin");
@@ -1446,13 +1559,14 @@ function renderDashboard() {
     wListEl.innerHTML = history
       .slice(0, 20)
       .map(
-        (h) => `
+        (h, idx) => `
         <div class="measure-history-card">
           <div class="measure-history-top">
             <span>${h.workout || "Treino"}</span>
             <span>${h.date || ""}</span>
           </div>
           <div class="measure-history-vals">${h.isManual ? "Atividade" : "Cardio pós-treino"}: <strong>${h.cardio || "Não marcado"}</strong></div>
+          ${h.photo ? `<img class="history-photo-mini" src="${h.photo}" alt="Foto check-in" onclick="openPhotoLightboxByIndex(${idx})" />` : ""}
         </div>
       `,
       )
