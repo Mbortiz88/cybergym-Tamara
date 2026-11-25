@@ -23,7 +23,7 @@
       href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,500;0,600;0,700;1,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="style.css?v=1.8.1" />
+    <link rel="stylesheet" href="style.css?v=1.8.2" />
   </head>
   <body>
     <div class="bg-grid"></div>
@@ -152,7 +152,7 @@
             </div>
           </button>
 
-          <!-- GAVETA EXPANSÍVEL COM AS 5 MODALIDADES -->
+          <!-- GAVETA EXPANSÍVEL COM AS 6 MODALIDADES -->
           <div class="cardio-drawer-panel open" id="cardioDrawerPanel">
             <div class="cardio-modes-grid" id="cardioModesGrid">
               <button
@@ -204,6 +204,16 @@
               >
                 <span class="cm-icon">🚴</span>
                 <span class="cm-label">BICICLETA</span>
+              </button>
+              <button
+                type="button"
+                class="cardio-mode-btn"
+                data-mode="DANÇA"
+                data-icon="💃"
+                onclick="selectCardioMode('DANÇA', '💃')"
+              >
+                <span class="cm-icon">💃</span>
+                <span class="cm-label">DANÇA</span>
               </button>
             </div>
           </div>
@@ -298,50 +308,6 @@
           <div class="kpi-card">
             <span class="kpi-label">ÚLTIMO PESO</span>
             <span class="kpi-value" id="kpiWeight">—</span>
-          </div>
-        </div>
-
-        <!-- SINCRONIZAÇÃO NUVEM (FIREBASE GOOGLE) -->
-        <div class="panel-card" id="cloudSyncCard">
-          <div class="cal-top-header" style="margin-bottom: 8px">
-            <div class="panel-title" style="margin-bottom: 0">
-              ☁️ NUVEM &amp; CONTA GOOGLE
-            </div>
-            <span class="cdd-badge" id="cloudSyncStatus">OFFLINE / LOCAL</span>
-          </div>
-          <p class="manual-hint" id="cloudUserInfo" style="margin-bottom: 10px">
-            Conecte sua conta Google para salvar treinos, check-ins, cargas e
-            medidas automaticamente na nuvem.
-          </p>
-          <div id="cloudLoggedOutActions">
-            <button
-              type="button"
-              class="btn-primary-action"
-              onclick="loginWithGoogle()"
-            >
-              🔐 ENTRAR COM GOOGLE
-            </button>
-          </div>
-          <div
-            class="backup-actions"
-            id="cloudLoggedInActions"
-            style="display: none"
-          >
-            <button
-              type="button"
-              class="btn-secondary-action"
-              onclick="manualCloudSync()"
-            >
-              🔄 SINCRONIZAR AGORA
-            </button>
-            <button
-              type="button"
-              class="btn-danger-reset"
-              style="margin-top: 0"
-              onclick="logoutGoogle()"
-            >
-              SAIR DA CONTA
-            </button>
           </div>
         </div>
 
@@ -443,9 +409,9 @@
             <button
               type="button"
               class="sport-chip"
-              onclick="applyQuickSport('Fitdance', '💃')"
+              onclick="applyQuickSport('Dança', '💃')"
             >
-              💃 Fitdance
+              💃 Dança
             </button>
             <button
               type="button"
@@ -616,9 +582,6 @@
     </div>
 
     <div id="toast" class="toast"></div>
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
     <script src="script.js?v=1.8.1"></script>
   </body>
 </html>
