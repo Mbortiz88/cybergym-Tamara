@@ -994,13 +994,13 @@ body {
   margin-top: 0;
 }
 .cardio-drawer-panel.open {
-  max-height: 140px;
+  max-height: 220px;
   opacity: 1;
   margin-top: 10px;
 }
 .cardio-modes-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 6px;
 }
 
@@ -1020,7 +1020,7 @@ body {
 }
 .cardio-mode-btn .cm-label {
   font-family: "JetBrains Mono", monospace;
-  font-size: 0.56rem;
+  font-size: 0.6rem;
   font-weight: 800;
   color: #9bb5d6;
 }
