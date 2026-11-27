@@ -17,16 +17,32 @@ let isSyncing = false;
 let pendingSyncRetry = false;
 let unsubFirestoreDoc = null;
 
-try {
-  if (typeof firebase !== "undefined") {
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
+function initFirebaseSafely() {
+  try {
+    if (typeof firebase !== "undefined") {
+      if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+      }
+      fbAuth = firebase.auth();
+      fbDb = firebase.firestore();
+
+      if (fbAuth && !fbAuth._tamaraListenerAttached) {
+        fbAuth._tamaraListenerAttached = true;
+        fbAuth.onAuthStateChanged((user) => {
+          currentCloudUser = user;
+          updateCloudUI(user);
+          if (user) {
+            attachFirestoreRealtimeListener(user);
+          } else if (unsubFirestoreDoc) {
+            unsubFirestoreDoc();
+            unsubFirestoreDoc = null;
+          }
+        });
+      }
     }
-    fbAuth = firebase.auth();
-    fbDb = firebase.firestore();
+  } catch (e) {
+    console.warn("Erro ao iniciar Firebase:", e);
   }
-} catch (e) {
-  console.warn("Erro ao iniciar Firebase:", e);
 }
 
 const workoutData = {
@@ -448,7 +464,6 @@ function collectSafeCloudPayload() {
     }
   });
 
-  // Proteção contra o limite rígido de 1 MB do documento raiz do Firestore
   let serializedSize = new Blob([JSON.stringify(payload)]).size;
   if (
     serializedSize > MAX_FIRESTORE_PAYLOAD_BYTES &&
@@ -608,6 +623,7 @@ function updateCloudUI(user, statusText) {
 }
 
 async function loginWithGoogle() {
+  initFirebaseSafely();
   if (!fbAuth) {
     showToast("ERRO AO INICIAR FIREBASE", 2400);
     return;
@@ -730,10 +746,7 @@ async function manualCloudSync() {
   if (!currentCloudUser) return;
   try {
     updateCloudUI(currentCloudUser, "VERIFICANDO NUVEM...");
-    const snap = await fbDb
-      .collection("users")
-      .doc(currentCloudUser.uid)
-      .get();
+    const snap = await fbDb.collection("users").doc(currentCloudUser.uid).get();
     if (snap.exists && snap.data().payload) {
       mergeRemoteAndLocalData(snap.data().payload);
       renderWorkoutCards();
@@ -744,19 +757,6 @@ async function manualCloudSync() {
     console.error(err);
     showToast("ERRO AO SINCRONIZAR COM A NUVEM", 2200);
   }
-}
-
-if (fbAuth) {
-  fbAuth.onAuthStateChanged((user) => {
-    currentCloudUser = user;
-    updateCloudUI(user);
-    if (user) {
-      attachFirestoreRealtimeListener(user);
-    } else if (unsubFirestoreDoc) {
-      unsubFirestoreDoc();
-      unsubFirestoreDoc = null;
-    }
-  });
 }
 
 window.addEventListener("online", () => {
@@ -773,6 +773,8 @@ document.addEventListener("visibilitychange", () => {
 
 function initApp() {
   try {
+    initFirebaseSafely();
+
     const mcDateInput = document.getElementById("mcDate");
     if (mcDateInput && !mcDateInput.value) {
       mcDateInput.value = getTodayISO();
@@ -1290,7 +1292,7 @@ function toggleCardioDone(checked) {
 /* REST TIMER */
 function updateTimerDisplay() {
   const mins = String(Math.floor(timerSeconds / 60)).padStart(2, "0");
-  const secs = String(timerSeconds % 60)).padStart(2, "0");
+  const secs = String(timerSeconds % 60).padStart(2, "0");
   const el = document.getElementById("restTimerDisplay");
   if (el) el.textContent = `${mins}:${secs}`;
 }
@@ -1832,3 +1834,11 @@ if (document.readyState === "loading") {
 } else {
   initApp();
 }
+
+window.addEventListener("load", () => {
+  initFirebaseSafely();
+  const container = document.getElementById("workoutCardsList");
+  if (container && !container.innerHTML.trim()) {
+    initApp();
+  }
+});
