@@ -732,11 +732,20 @@
 
     <div id="toast" class="toast"></div>
 
-    <!-- FIREBASE SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <!-- FIREBASE SDK (COM DEFER PARA NÃO TRAVAR O RENDER) -->
+    <script
+      defer
+      src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"
+    ></script>
+    <script
+      defer
+      src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"
+    ></script>
+    <script
+      defer
+      src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"
+    ></script>
 
-    <script src="script.js?v=2.0.0"></script>
+    <script defer src="script.js?v=2.0.1"></script>
   </body>
 </html>
