@@ -1,9 +1,9 @@
-const CACHE_NAME = "tamara-cybergym-hud-v1.9.0";
+const CACHE_NAME = "tamara-cybergym-hud-v2.0.0";
 const ASSETS = [
   "./",
   "./index.html",
-  "./style.css?v=1.9.0",
-  "./script.js?v=1.9.0",
+  "./style.css?v=2.0.0",
+  "./script.js?v=2.0.0",
   "./manifest.json",
   "./icon-512.png",
 ];
