@@ -11,19 +11,35 @@ const FIREBASE_CONFIG = {
   measurementId: "G-Z5Q9Q7D83K",
 };
 
-let fbApp = null;
-let fbAuth = null;
-let fbDb = null;
-let currentCloudUser = null;
-let firestoreUnsubscribe = null;
-let isSyncingNow = false;
-
-const CLOUD_SYNC_KEYS = [
+const DB_NAME = "TamaraFitnessDB_v3";
+const DB_VERSION = 1;
+const LEGACY_KEYS = [
   "tamara_sets_v13",
   "tamara_prs_v13",
   "tamara_workout_history",
   "tamara_measures_list",
 ];
+const LEGACY_ACTIVE_KEY = "tamara_active_session_v18";
+
+let fbApp = null;
+let fbAuth = null;
+let fbDb = null;
+let currentCloudUser = null;
+let unsubCheckins = null;
+let unsubMeasures = null;
+let unsubTemplates = null;
+let isSyncingNow = false;
+let isSavingCheckin = false;
+let lastSyncTimestamp = 0;
+
+/* Cache em memória do usuário ativo (isolado por uid) */
+let stateCache = {
+  userId: "local",
+  checkins: [],
+  measures: [],
+  templates: {}, // { [exId]: { exId, sets: [...], pr: number, updatedAt: number } }
+  activeSession: null,
+};
 
 const workoutData = {
   A: {
@@ -280,9 +296,6 @@ const workoutData = {
   },
 };
 
-const ACTIVE_SESSION_KEY = "tamara_active_session_v18";
-const MAX_FIRESTORE_PAYLOAD_BYTES = 850000;
-
 let currentWorkoutKey = "A";
 let activeWorkoutState = {};
 let cardioState = {
@@ -296,7 +309,8 @@ let cardioState = {
 let pendingWorkoutPhoto = "";
 let pendingManualPhoto = "";
 
-let timerSeconds = 60;
+/* Cronômetro baseado no relógio real (não atrasa com tela bloqueada) */
+let timerEndTimestamp = 0;
 let timerInterval = null;
 let timerRunning = false;
 
@@ -304,15 +318,38 @@ let calViewYear = new Date().getFullYear();
 let calViewMonth = new Date().getMonth();
 let selectedCalDateISO = getTodayISO();
 
-function safeReadJSON(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw);
-    return parsed !== null && parsed !== undefined ? parsed : fallback;
-  } catch {
-    return fallback;
+/* =========================================================
+   UTILITÁRIOS DE SEGURANÇA, ID E DATAS
+   ========================================================= */
+function escapeHTML(str) {
+  if (str === null || str === undefined) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function generateUID() {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
   }
+  return (
+    "id_" +
+    Date.now().toString(36) +
+    "_" +
+    Math.random().toString(36).substring(2, 10)
+  );
+}
+
+function getActiveUserId() {
+  return currentCloudUser && currentCloudUser.uid
+    ? currentCloudUser.uid
+    : "local";
 }
 
 function getTodayISO() {
@@ -337,10 +374,794 @@ function brToISO(br) {
   return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
 }
 
+function safeReadLegacyJSON(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed !== null && parsed !== undefined ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/* =========================================================
+   CAMADA 1: BANCO LOCAL INDEXEDDB (ISOLADO POR USUÁRIO)
+   ========================================================= */
+let dbPromise = null;
+
+function openLocalDB() {
+  if (dbPromise) return dbPromise;
+  dbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains("checkins")) {
+        const store = db.createObjectStore("checkins", {
+          keyPath: ["userId", "id"],
+        });
+        store.createIndex("by_user", "userId", { unique: false });
+      }
+      if (!db.objectStoreNames.contains("measures")) {
+        const store = db.createObjectStore("measures", {
+          keyPath: ["userId", "id"],
+        });
+        store.createIndex("by_user", "userId", { unique: false });
+      }
+      if (!db.objectStoreNames.contains("templates")) {
+        const store = db.createObjectStore("templates", {
+          keyPath: ["userId", "exId"],
+        });
+        store.createIndex("by_user", "userId", { unique: false });
+      }
+      if (!db.objectStoreNames.contains("active_sessions")) {
+        db.createObjectStore("active_sessions", { keyPath: "userId" });
+      }
+      if (!db.objectStoreNames.contains("tombstones")) {
+        const store = db.createObjectStore("tombstones", {
+          keyPath: ["userId", "id"],
+        });
+        store.createIndex("by_user", "userId", { unique: false });
+      }
+      if (!db.objectStoreNames.contains("sync_queue")) {
+        const store = db.createObjectStore("sync_queue", {
+          keyPath: ["userId", "queueKey"],
+        });
+        store.createIndex("by_user", "userId", { unique: false });
+      }
+      if (!db.objectStoreNames.contains("meta")) {
+        db.createObjectStore("meta", { keyPath: "key" });
+      }
+    };
+
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return dbPromise;
+}
+
+async function idbGetAllByUser(storeName, userId) {
+  const db = await openLocalDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, "readonly");
+    const store = tx.objectStore(storeName);
+    const index = store.index("by_user");
+    const req = index.getAll(userId);
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbGet(storeName, key) {
+  const db = await openLocalDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, "readonly");
+    const req = tx.objectStore(storeName).get(key);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbPut(storeName, record) {
+  const db = await openLocalDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, "readwrite");
+    const req = tx.objectStore(storeName).put(record);
+    req.onsuccess = () => resolve(true);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbDelete(storeName, key) {
+  const db = await openLocalDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, "readwrite");
+    const req = tx.objectStore(storeName).delete(key);
+    req.onsuccess = () => resolve(true);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbClearUserStore(storeName, userId) {
+  const items = await idbGetAllByUser(storeName, userId);
+  const db = await openLocalDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, "readwrite");
+    const store = tx.objectStore(storeName);
+    items.forEach((item) => {
+      if (storeName === "templates") {
+        store.delete([userId, item.exId]);
+      } else if (storeName === "sync_queue") {
+        store.delete([userId, item.queueKey]);
+      } else {
+        store.delete([userId, item.id]);
+      }
+    });
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function loadUserStateFromIDB(userId) {
+  const [checkins, measures, templatesList, activeSess] = await Promise.all([
+    idbGetAllByUser("checkins", userId),
+    idbGetAllByUser("measures", userId),
+    idbGetAllByUser("templates", userId),
+    idbGet("active_sessions", userId),
+  ]);
+
+  checkins.sort(
+    (a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0),
+  );
+  measures.sort(
+    (a, b) => (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0),
+  );
+
+  const templatesMap = {};
+  templatesList.forEach((t) => {
+    templatesMap[t.exId] = t;
+  });
+
+  stateCache = {
+    userId,
+    checkins,
+    measures,
+    templates: templatesMap,
+    activeSession: activeSess || null,
+  };
+}
+
+/* =========================================================
+   CAMADA 2: FILA OFFLINE E SINCRONIZAÇÃO POR REGISTRO (FIRESTORE)
+   ========================================================= */
+async function enqueueSyncOp(userId, collectionName, docId, opType, payload) {
+  if (!userId || userId === "local") return;
+  const queueKey = `${collectionName}:${docId}`;
+  await idbPut("sync_queue", {
+    userId,
+    queueKey,
+    collectionName,
+    docId,
+    opType, // "upsert" | "delete"
+    payload,
+    updatedAt: Date.now(),
+  });
+}
+
+async function flushSyncQueue() {
+  if (!fbDb || !currentCloudUser) return false;
+  if (isSyncingNow) return false;
+  if (typeof navigator !== "undefined" && navigator.onLine === false)
+    return false;
+
+  const userId = currentCloudUser.uid;
+  const queue = await idbGetAllByUser("sync_queue", userId);
+  if (!queue.length) return true;
+
+  isSyncingNow = true;
+  try {
+    const userDocRef = fbDb.collection("users").doc(userId);
+    // Garante metadados básicos no documento raiz
+    await userDocRef.set(
+      {
+        displayName: currentCloudUser.displayName || "",
+        email: currentCloudUser.email || "",
+        schemaVersion: 3,
+        lastActiveAt: Date.now(),
+      },
+      { merge: true },
+    );
+
+    // Envia em lotes seguros (até 25 operações por batch para respeitar 10MB por batch)
+    const BATCH_LIMIT = 25;
+    for (let i = 0; i < queue.length; i += BATCH_LIMIT) {
+      const slice = queue.slice(i, i + BATCH_LIMIT);
+      const batch = fbDb.batch();
+
+      slice.forEach((item) => {
+        const docRef = userDocRef
+          .collection(item.collectionName)
+          .doc(item.docId);
+        if (item.opType === "delete") {
+          batch.delete(docRef);
+        } else {
+          const cleanPayload = { ...item.payload };
+          delete cleanPayload.userId;
+          batch.set(docRef, cleanPayload, { merge: true });
+        }
+      });
+
+      await batch.commit();
+
+      for (const item of slice) {
+        await idbDelete("sync_queue", [userId, item.queueKey]);
+      }
+    }
+
+    lastSyncTimestamp = Date.now();
+    await idbPut("meta", {
+      key: `last_sync_${userId}`,
+      value: lastSyncTimestamp,
+    });
+    renderConnectedCloudBanner(lastSyncTimestamp);
+    return true;
+  } catch (err) {
+    console.warn("Erro ao enviar fila para Firestore:", err);
+    const errCode = err && err.code ? err.code : "erro-rede";
+    const userLabel =
+      currentCloudUser.displayName || currentCloudUser.email || "Conta Google";
+    updateCloudUI(
+      "PENDENTE / OFFLINE",
+      `${userLabel} • Alterações salvas localmente (${errCode}).`,
+      true,
+      true,
+    );
+    return false;
+  } finally {
+    isSyncingNow = false;
+  }
+}
+
+async function pullRemoteSubcollections(userId) {
+  if (!fbDb || !userId || userId === "local") return;
+  const userDocRef = fbDb.collection("users").doc(userId);
+
+  const [checkinsSnap, measuresSnap, templatesSnap, tombstonesSnap] =
+    await Promise.all([
+      userDocRef.collection("checkins").get(),
+      userDocRef.collection("measures").get(),
+      userDocRef.collection("templates").get(),
+      userDocRef.collection("tombstones").get(),
+    ]);
+
+  // 1. Aplica tombstones (exclusões explícitas)
+  const deletedIds = new Set();
+  const localTombs = await idbGetAllByUser("tombstones", userId);
+  localTombs.forEach((t) => deletedIds.add(t.id));
+
+  for (const doc of tombstonesSnap.docs) {
+    const data = doc.data() || {};
+    const targetId = data.targetId || doc.id;
+    deletedIds.add(targetId);
+    await idbPut("tombstones", {
+      userId,
+      id: targetId,
+      deletedAt: data.deletedAt || Date.now(),
+    });
+    await idbDelete("checkins", [userId, targetId]);
+    await idbDelete("measures", [userId, targetId]);
+  }
+
+  // 2. Mescla check-ins remotos (last-write-wins por registro individual)
+  for (const doc of checkinsSnap.docs) {
+    if (deletedIds.has(doc.id)) continue;
+    const remote = doc.data() || {};
+    const local = await idbGet("checkins", [userId, doc.id]);
+    const remoteUpdated =
+      Number(remote.updatedAt) || Number(remote.createdAt) || 0;
+    const localUpdated = local
+      ? Number(local.updatedAt) || Number(local.createdAt) || 0
+      : -1;
+
+    if (!local || remoteUpdated > localUpdated) {
+      await idbPut("checkins", {
+        ...remote,
+        userId,
+        id: doc.id,
+      });
+    }
+  }
+
+  // 3. Mescla medidas remotas
+  for (const doc of measuresSnap.docs) {
+    if (deletedIds.has(doc.id)) continue;
+    const remote = doc.data() || {};
+    const local = await idbGet("measures", [userId, doc.id]);
+    const remoteUpdated =
+      Number(remote.updatedAt) || Number(remote.createdAt) || 0;
+    const localUpdated = local
+      ? Number(local.updatedAt) || Number(local.createdAt) || 0
+      : -1;
+
+    if (!local || remoteUpdated > localUpdated) {
+      await idbPut("measures", {
+        ...remote,
+        userId,
+        id: doc.id,
+      });
+    }
+  }
+
+  // 4. Mescla templates e recordes (PRs) por exercício
+  for (const doc of templatesSnap.docs) {
+    const remote = doc.data() || {};
+    const exId = remote.exId || doc.id;
+    const local = await idbGet("templates", [userId, exId]);
+    const remoteUpdated = Number(remote.updatedAt) || 0;
+    const localUpdated = local ? Number(local.updatedAt) || 0 : -1;
+
+    const mergedPR = Math.max(
+      Number(remote.pr) || 0,
+      local ? Number(local.pr) || 0 : 0,
+    );
+
+    if (!local || remoteUpdated > localUpdated) {
+      await idbPut("templates", {
+        userId,
+        exId,
+        sets: Array.isArray(remote.sets) ? remote.sets : local?.sets || [],
+        pr: mergedPR,
+        updatedAt: Math.max(remoteUpdated, localUpdated),
+      });
+    } else if (mergedPR > (Number(local.pr) || 0)) {
+      const updatedLocal = { ...local, pr: mergedPR };
+      await idbPut("templates", updatedLocal);
+      await enqueueSyncOp(userId, "templates", exId, "upsert", updatedLocal);
+    }
+  }
+}
+
+/* =========================================================
+   CAMADA 3: MIGRAÇÃO AUTOMÁTICA DO FORMATO LEGADO (V2 -> V3)
+   ========================================================= */
+async function migrateLegacyDataIfNeeded(userId) {
+  // A) Migração do localStorage antigo (apenas 1 vez)
+  const localMigMeta = await idbGet("meta", "legacy_localstorage_migrated");
+  if (!localMigMeta) {
+    const oldHistory = safeReadLegacyJSON("tamara_workout_history", []);
+    const oldMeasures = safeReadLegacyJSON("tamara_measures_list", []);
+    const oldSets = safeReadLegacyJSON("tamara_sets_v13", {});
+    const oldPrs = safeReadLegacyJSON("tamara_prs_v13", {});
+
+    const hasAnyLegacy =
+      (Array.isArray(oldHistory) && oldHistory.length > 0) ||
+      (Array.isArray(oldMeasures) && oldMeasures.length > 0) ||
+      Object.keys(oldSets).length > 0 ||
+      Object.keys(oldPrs).length > 0;
+
+    if (hasAnyLegacy) {
+      const now = Date.now();
+      if (Array.isArray(oldHistory)) {
+        for (let i = 0; i < oldHistory.length; i++) {
+          const item = oldHistory[i];
+          if (!item) continue;
+          const id = item.id || generateUID();
+          const ts = now - i * 1000;
+          const record = {
+            userId,
+            id,
+            date: item.date || isoToBR(item.isoDate || getTodayISO()),
+            isoDate: item.isoDate || brToISO(item.date) || getTodayISO(),
+            workoutKey: item.workoutKey || "",
+            workout: item.workout || "Treino",
+            volumeKg: Number(item.volumeKg) || 0,
+            cardio: item.cardio || "",
+            photo: item.photo || "",
+            isManual: Boolean(item.isManual),
+            createdAt: ts,
+            updatedAt: ts,
+          };
+          await idbPut("checkins", record);
+          if (userId !== "local") {
+            await enqueueSyncOp(userId, "checkins", id, "upsert", record);
+          }
+        }
+      }
+
+      if (Array.isArray(oldMeasures)) {
+        for (let i = 0; i < oldMeasures.length; i++) {
+          const m = oldMeasures[i];
+          if (!m) continue;
+          const id = m.id || generateUID();
+          const ts = now - i * 1000;
+          const record = {
+            userId,
+            id,
+            date: m.date || new Date().toLocaleDateString("pt-BR"),
+            peso: m.peso || "-",
+            torax: m.torax || "-",
+            cintura: m.cintura || "-",
+            abdomen: m.abdomen || "-",
+            quadril: m.quadril || "-",
+            bracoD: m.bracoD || "-",
+            bracoE: m.bracoE || "-",
+            coxaD: m.coxaD || "-",
+            coxaE: m.coxaE || "-",
+            createdAt: ts,
+            updatedAt: ts,
+          };
+          await idbPut("measures", record);
+          if (userId !== "local") {
+            await enqueueSyncOp(userId, "measures", id, "upsert", record);
+          }
+        }
+      }
+
+      const allExIds = new Set([
+        ...Object.keys(oldSets),
+        ...Object.keys(oldPrs),
+      ]);
+      for (const exId of allExIds) {
+        const record = {
+          userId,
+          exId,
+          sets: Array.isArray(oldSets[exId]) ? oldSets[exId] : [],
+          pr: Number(oldPrs[exId]) || 0,
+          updatedAt: now,
+        };
+        await idbPut("templates", record);
+        if (userId !== "local") {
+          await enqueueSyncOp(userId, "templates", exId, "upsert", record);
+        }
+      }
+
+      // Limpa chaves antigas do localStorage após migrar com segurança
+      LEGACY_KEYS.forEach((k) => localStorage.removeItem(k));
+      localStorage.removeItem(LEGACY_ACTIVE_KEY);
+    }
+
+    await idbPut("meta", {
+      key: "legacy_localstorage_migrated",
+      value: true,
+    });
+  }
+
+  // B) Se logado no Google, verifica se há dados criados no modo "local" para incorporar à conta
+  if (userId !== "local") {
+    const [localCheckins, localMeasures, localTemplates] = await Promise.all([
+      idbGetAllByUser("checkins", "local"),
+      idbGetAllByUser("measures", "local"),
+      idbGetAllByUser("templates", "local"),
+    ]);
+
+    for (const item of localCheckins) {
+      const migrated = { ...item, userId };
+      await idbPut("checkins", migrated);
+      await enqueueSyncOp(userId, "checkins", item.id, "upsert", migrated);
+      await idbDelete("checkins", ["local", item.id]);
+    }
+
+    for (const item of localMeasures) {
+      const migrated = { ...item, userId };
+      await idbPut("measures", migrated);
+      await enqueueSyncOp(userId, "measures", item.id, "upsert", migrated);
+      await idbDelete("measures", ["local", item.id]);
+    }
+
+    for (const item of localTemplates) {
+      const migrated = { ...item, userId };
+      await idbPut("templates", migrated);
+      await enqueueSyncOp(userId, "templates", item.exId, "upsert", migrated);
+      await idbDelete("templates", ["local", item.exId]);
+    }
+  }
+
+  // C) Se logado no Google, verifica o documento legado users/{uid} no Firestore
+  if (userId !== "local" && fbDb) {
+    const cloudMigMeta = await idbGet(
+      "meta",
+      `legacy_cloud_migrated_${userId}`,
+    );
+    if (!cloudMigMeta) {
+      try {
+        const userDocRef = fbDb.collection("users").doc(userId);
+        const rootSnap = await userDocRef.get();
+        if (rootSnap.exists) {
+          const rootData = rootSnap.data() || {};
+          const legacyBlob = rootData.data || rootData.payload || null;
+
+          if (
+            legacyBlob &&
+            typeof legacyBlob === "object" &&
+            !rootData.v3Migrated
+          ) {
+            const now = Date.now();
+
+            if (typeof legacyBlob.tamara_workout_history === "string") {
+              const arr = JSON.parse(legacyBlob.tamara_workout_history);
+              if (Array.isArray(arr)) {
+                for (let i = 0; i < arr.length; i++) {
+                  const item = arr[i];
+                  if (!item) continue;
+                  const id =
+                    item.id ||
+                    `leg_c_${i}_${(item.isoDate || "").replace(/-/g, "")}`;
+                  const existing = await idbGet("checkins", [userId, id]);
+                  if (!existing) {
+                    const ts = now - i * 1000;
+                    const record = {
+                      userId,
+                      id,
+                      date: item.date || isoToBR(item.isoDate || getTodayISO()),
+                      isoDate:
+                        item.isoDate || brToISO(item.date) || getTodayISO(),
+                      workoutKey: item.workoutKey || "",
+                      workout: item.workout || "Treino",
+                      volumeKg: Number(item.volumeKg) || 0,
+                      cardio: item.cardio || "",
+                      photo: item.photo || "",
+                      isManual: Boolean(item.isManual),
+                      createdAt: ts,
+                      updatedAt: ts,
+                    };
+                    await idbPut("checkins", record);
+                    await enqueueSyncOp(
+                      userId,
+                      "checkins",
+                      id,
+                      "upsert",
+                      record,
+                    );
+                  }
+                }
+              }
+            }
+
+            if (typeof legacyBlob.tamara_measures_list === "string") {
+              const arr = JSON.parse(legacyBlob.tamara_measures_list);
+              if (Array.isArray(arr)) {
+                for (let i = 0; i < arr.length; i++) {
+                  const m = arr[i];
+                  if (!m) continue;
+                  const id =
+                    m.id || `leg_m_${i}_${(m.date || "").replace(/\//g, "")}`;
+                  const existing = await idbGet("measures", [userId, id]);
+                  if (!existing) {
+                    const ts = now - i * 1000;
+                    const record = {
+                      userId,
+                      id,
+                      date: m.date || "",
+                      peso: m.peso || "-",
+                      torax: m.torax || "-",
+                      cintura: m.cintura || "-",
+                      abdomen: m.abdomen || "-",
+                      quadril: m.quadril || "-",
+                      bracoD: m.bracoD || "-",
+                      bracoE: m.bracoE || "-",
+                      coxaD: m.coxaD || "-",
+                      coxaE: m.coxaE || "-",
+                      createdAt: ts,
+                      updatedAt: ts,
+                    };
+                    await idbPut("measures", record);
+                    await enqueueSyncOp(
+                      userId,
+                      "measures",
+                      id,
+                      "upsert",
+                      record,
+                    );
+                  }
+                }
+              }
+            }
+
+            const setsObj =
+              typeof legacyBlob.tamara_sets_v13 === "string"
+                ? JSON.parse(legacyBlob.tamara_sets_v13)
+                : {};
+            const prsObj =
+              typeof legacyBlob.tamara_prs_v13 === "string"
+                ? JSON.parse(legacyBlob.tamara_prs_v13)
+                : {};
+            const exKeys = new Set([
+              ...Object.keys(setsObj || {}),
+              ...Object.keys(prsObj || {}),
+            ]);
+
+            for (const exId of exKeys) {
+              const existing = await idbGet("templates", [userId, exId]);
+              const record = {
+                userId,
+                exId,
+                sets: Array.isArray(setsObj[exId])
+                  ? setsObj[exId]
+                  : existing?.sets || [],
+                pr: Math.max(
+                  Number(prsObj[exId]) || 0,
+                  Number(existing?.pr) || 0,
+                ),
+                updatedAt: now,
+              };
+              await idbPut("templates", record);
+              await enqueueSyncOp(userId, "templates", exId, "upsert", record);
+            }
+
+            await flushSyncQueue();
+            await userDocRef.set({ v3Migrated: true }, { merge: true });
+          }
+        }
+        await idbPut("meta", {
+          key: `legacy_cloud_migrated_${userId}`,
+          value: true,
+        });
+      } catch (err) {
+        console.warn("Aviso na migração legada do Firestore:", err);
+      }
+    }
+  }
+}
+
+/* =========================================================
+   SINCRONIZAÇÃO COMPLETA & LISTENERS EM TEMPO REAL
+   ========================================================= */
+function detachFirestoreListeners() {
+  if (typeof unsubCheckins === "function") {
+    unsubCheckins();
+    unsubCheckins = null;
+  }
+  if (typeof unsubMeasures === "function") {
+    unsubMeasures();
+    unsubMeasures = null;
+  }
+  if (typeof unsubTemplates === "function") {
+    unsubTemplates();
+    unsubTemplates = null;
+  }
+}
+
+function attachFirestoreRealtimeListeners(userId) {
+  if (!fbDb || !userId || userId === "local") return;
+  detachFirestoreListeners();
+
+  const userDocRef = fbDb.collection("users").doc(userId);
+
+  unsubCheckins = userDocRef.collection("checkins").onSnapshot(
+    async (snap) => {
+      if (isSyncingNow || getActiveUserId() !== userId) return;
+      let changed = false;
+      for (const change of snap.docChanges()) {
+        const docId = change.doc.id;
+        if (change.type === "removed") {
+          await idbDelete("checkins", [userId, docId]);
+          changed = true;
+        } else {
+          const remote = change.doc.data() || {};
+          const local = await idbGet("checkins", [userId, docId]);
+          const rUpd =
+            Number(remote.updatedAt) || Number(remote.createdAt) || 0;
+          const lUpd = local
+            ? Number(local.updatedAt) || Number(local.createdAt) || 0
+            : -1;
+          if (!local || rUpd > lUpd) {
+            await idbPut("checkins", { ...remote, userId, id: docId });
+            changed = true;
+          }
+        }
+      }
+      if (changed) {
+        await loadUserStateFromIDB(userId);
+        renderDashboard();
+      }
+    },
+    (err) => console.warn("Listener checkins:", err && err.code),
+  );
+
+  unsubMeasures = userDocRef.collection("measures").onSnapshot(
+    async (snap) => {
+      if (isSyncingNow || getActiveUserId() !== userId) return;
+      let changed = false;
+      for (const change of snap.docChanges()) {
+        const docId = change.doc.id;
+        if (change.type === "removed") {
+          await idbDelete("measures", [userId, docId]);
+          changed = true;
+        } else {
+          const remote = change.doc.data() || {};
+          const local = await idbGet("measures", [userId, docId]);
+          const rUpd =
+            Number(remote.updatedAt) || Number(remote.createdAt) || 0;
+          const lUpd = local
+            ? Number(local.updatedAt) || Number(local.createdAt) || 0
+            : -1;
+          if (!local || rUpd > lUpd) {
+            await idbPut("measures", { ...remote, userId, id: docId });
+            changed = true;
+          }
+        }
+      }
+      if (changed) {
+        await loadUserStateFromIDB(userId);
+        renderDashboard();
+      }
+    },
+    (err) => console.warn("Listener measures:", err && err.code),
+  );
+
+  unsubTemplates = userDocRef.collection("templates").onSnapshot(
+    async (snap) => {
+      if (isSyncingNow || getActiveUserId() !== userId) return;
+      let changed = false;
+      for (const change of snap.docChanges()) {
+        const exId = change.doc.id;
+        const remote = change.doc.data() || {};
+        const local = await idbGet("templates", [userId, exId]);
+        const rUpd = Number(remote.updatedAt) || 0;
+        const lUpd = local ? Number(local.updatedAt) || 0 : -1;
+        if (!local || rUpd > lUpd) {
+          await idbPut("templates", {
+            userId,
+            exId,
+            sets: remote.sets || [],
+            pr: Math.max(Number(remote.pr) || 0, Number(local?.pr) || 0),
+            updatedAt: rUpd,
+          });
+          changed = true;
+        }
+      }
+      if (changed) {
+        await loadUserStateFromIDB(userId);
+      }
+    },
+    (err) => console.warn("Listener templates:", err && err.code),
+  );
+}
+
+async function fullSyncCycle(silent = true) {
+  if (!fbDb || !currentCloudUser) return false;
+  const userId = currentCloudUser.uid;
+  try {
+    await migrateLegacyDataIfNeeded(userId);
+    await flushSyncQueue();
+    await pullRemoteSubcollections(userId);
+    await flushSyncQueue();
+    await loadUserStateFromIDB(userId);
+
+    renderWorkoutCards();
+    renderDashboard();
+
+    lastSyncTimestamp = Date.now();
+    await idbPut("meta", {
+      key: `last_sync_${userId}`,
+      value: lastSyncTimestamp,
+    });
+    renderConnectedCloudBanner(lastSyncTimestamp);
+
+    if (!silent) {
+      showToast("NUVEM SINCRONIZADA ✓", 1800);
+    }
+    return true;
+  } catch (err) {
+    const errCode = err && err.code ? err.code : "erro-sync";
+    updateCloudUI(
+      "ERRO DE SINCRONIZAÇÃO",
+      `Falha ao sincronizar (${errCode}). Verifique sua conexão ou regras do Firestore.`,
+      true,
+      true,
+    );
+    if (!silent) {
+      showToast(`ERRO NUVEM: ${errCode.toUpperCase()}`, 2400);
+    }
+    return false;
+  }
+}
+
 /* =========================================================
    COMPRESSÃO E PRÉ-VISUALIZAÇÃO DE FOTO DO CHECK-IN
    ========================================================= */
-function compressImageToDataURL(file, maxWidth = 560, quality = 0.68) {
+function compressImageToDataURL(file, maxWidth = 720, quality = 0.74) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("Erro ao ler imagem"));
@@ -373,7 +1194,7 @@ async function handleCheckinPhotoSelect(event, context) {
 
   try {
     showToast("PROCESSANDO FOTO...", 1200);
-    const compressedDataUrl = await compressImageToDataURL(file, 560, 0.68);
+    const compressedDataUrl = await compressImageToDataURL(file, 720, 0.74);
 
     if (context === "workout") {
       pendingWorkoutPhoto = compressedDataUrl;
@@ -408,9 +1229,8 @@ function clearSelectedPhoto(context) {
   }
 }
 
-function openPhotoLightboxByIndex(historyIndex) {
-  const history = safeReadJSON("tamara_workout_history", []);
-  const item = history[historyIndex];
+function openPhotoLightboxById(checkinId) {
+  const item = stateCache.checkins.find((c) => c.id === checkinId);
   if (!item || !item.photo) return;
 
   document.getElementById("plbTitle").textContent =
@@ -426,14 +1246,14 @@ function closePhotoLightbox() {
 }
 
 /* =========================================================
-   CAMADA DE SINCRONIZAÇÃO NUVEM (FIREBASE + TEMPO REAL)
+   FIREBASE AUTH & INTERFACE DO CARD DE NUVEM
    ========================================================= */
 function isFirebaseConfigured() {
   return Boolean(
     FIREBASE_CONFIG &&
-      FIREBASE_CONFIG.apiKey &&
-      FIREBASE_CONFIG.projectId &&
-      FIREBASE_CONFIG.appId,
+    FIREBASE_CONFIG.apiKey &&
+    FIREBASE_CONFIG.projectId &&
+    FIREBASE_CONFIG.appId,
   );
 }
 
@@ -480,53 +1300,11 @@ function renderConnectedCloudBanner(syncTs) {
   if (!currentCloudUser) return;
   const userLabel =
     currentCloudUser.displayName || currentCloudUser.email || "Conta Google";
-  const lastSyncStr = formatSyncTimestamp(
-    syncTs || localStorage.getItem("tamara_last_cloud_sync_time"),
-  );
+  const lastSyncStr = formatSyncTimestamp(syncTs || lastSyncTimestamp);
   const infoMsg = lastSyncStr
     ? `Conta: ${userLabel} • Última sincronização: ${lastSyncStr}`
-    : `Conta: ${userLabel} • Sincronização automática ativa`;
+    : `Conta: ${userLabel} • Sincronização individual ativa`;
   updateCloudUI("ATIVO • SINCRONIZADO", infoMsg, true, false);
-}
-
-function detachFirestoreListener() {
-  if (typeof firestoreUnsubscribe === "function") {
-    firestoreUnsubscribe();
-    firestoreUnsubscribe = null;
-  }
-}
-
-function attachFirestoreRealtimeListener() {
-  if (!fbDb || !currentCloudUser) return;
-  detachFirestoreListener();
-
-  const userDocRef = fbDb.collection("users").doc(currentCloudUser.uid);
-  firestoreUnsubscribe = userDocRef.onSnapshot(
-    (docSnap) => {
-      if (!docSnap.exists || isSyncingNow) return;
-      const remote = docSnap.data() || {};
-      const remoteData = remote.data || remote.payload || null;
-      const remoteUpdatedAt = Number(remote.updatedAt) || 0;
-      const localUpdatedAt =
-        Number(localStorage.getItem("tamara_last_local_update")) || 0;
-
-      if (remoteData && remoteUpdatedAt > localUpdatedAt) {
-        applyCloudDataToLocal(remoteData);
-        localStorage.setItem(
-          "tamara_last_local_update",
-          String(remoteUpdatedAt),
-        );
-        localStorage.setItem(
-          "tamara_last_cloud_sync_time",
-          String(remoteUpdatedAt),
-        );
-        renderConnectedCloudBanner(remoteUpdatedAt);
-      }
-    },
-    (err) => {
-      console.warn("Snapshot Firestore:", err && err.code);
-    },
-  );
 }
 
 function initFirebaseSafely() {
@@ -559,12 +1337,20 @@ function initFirebaseSafely() {
 
       fbAuth.onAuthStateChanged(async (user) => {
         currentCloudUser = user || null;
+        const activeUid = getActiveUserId();
+
+        await loadUserStateFromIDB(activeUid);
+        renderWorkoutCards();
+        renderDashboard();
+
         if (user) {
-          renderConnectedCloudBanner();
-          await syncCloudBidirectional(true);
-          attachFirestoreRealtimeListener();
+          const metaSync = await idbGet("meta", `last_sync_${user.uid}`);
+          lastSyncTimestamp = metaSync ? Number(metaSync.value) || 0 : 0;
+          renderConnectedCloudBanner(lastSyncTimestamp);
+          await fullSyncCycle(true);
+          attachFirestoreRealtimeListeners(user.uid);
         } else {
-          detachFirestoreListener();
+          detachFirestoreListeners();
           updateCloudUI(
             "OFFLINE / LOCAL",
             "Conecte sua conta Google para sincronizar treinos, check-ins, fotos, recordes e medidas automaticamente.",
@@ -580,164 +1366,6 @@ function initFirebaseSafely() {
       false,
       true,
     );
-  }
-}
-
-function collectLocalAppData() {
-  const payload = {};
-  CLOUD_SYNC_KEYS.forEach((key) => {
-    const val = localStorage.getItem(key);
-    if (val !== null) {
-      payload[key] = val;
-    }
-  });
-
-  // Proteção contra limite de 1 MB do Firestore por documento
-  let serialized = JSON.stringify(payload);
-  if (
-    serialized.length > MAX_FIRESTORE_PAYLOAD_BYTES &&
-    payload.tamara_workout_history
-  ) {
-    try {
-      const hist = JSON.parse(payload.tamara_workout_history);
-      if (Array.isArray(hist)) {
-        const trimmedHist = hist.map((item, idx) =>
-          idx >= 5 ? { ...item, photo: "" } : item,
-        );
-        payload.tamara_workout_history = JSON.stringify(trimmedHist);
-        serialized = JSON.stringify(payload);
-      }
-    } catch {}
-  }
-
-  if (
-    serialized.length > MAX_FIRESTORE_PAYLOAD_BYTES + 70000 &&
-    payload.tamara_workout_history
-  ) {
-    try {
-      const hist = JSON.parse(payload.tamara_workout_history);
-      if (Array.isArray(hist)) {
-        payload.tamara_workout_history = JSON.stringify(
-          hist.map((item) => ({ ...item, photo: "" })),
-        );
-      }
-    } catch {}
-  }
-
-  return payload;
-}
-
-function applyCloudDataToLocal(data) {
-  if (!data || typeof data !== "object") return;
-  CLOUD_SYNC_KEYS.forEach((key) => {
-    if (typeof data[key] === "string") {
-      localStorage.setItem(key, data[key]);
-    }
-  });
-  renderWorkoutCards();
-  renderDashboard();
-}
-
-async function syncCloudBidirectional(silent = false) {
-  if (!fbDb || !currentCloudUser) return false;
-  if (isSyncingNow) return false;
-
-  isSyncingNow = true;
-  try {
-    const userDocRef = fbDb.collection("users").doc(currentCloudUser.uid);
-    const docSnap = await userDocRef.get();
-
-    const localData = collectLocalAppData();
-    const hasLocalData = Object.keys(localData).length > 0;
-    const localUpdatedAt =
-      Number(localStorage.getItem("tamara_last_local_update")) || 0;
-
-    if (docSnap.exists) {
-      const remote = docSnap.data() || {};
-      const remoteData = remote.data || remote.payload || null;
-      const remoteUpdatedAt = Number(remote.updatedAt) || 0;
-
-      if (localUpdatedAt > remoteUpdatedAt && hasLocalData) {
-        isSyncingNow = false;
-        return await pushToFirestore(silent);
-      } else if (remoteData && remoteUpdatedAt >= localUpdatedAt) {
-        applyCloudDataToLocal(remoteData);
-        const syncTime = remoteUpdatedAt || Date.now();
-        localStorage.setItem("tamara_last_local_update", String(syncTime));
-        localStorage.setItem("tamara_last_cloud_sync_time", String(syncTime));
-        renderConnectedCloudBanner(syncTime);
-        if (!silent) {
-          showToast("NUVEM ATUALIZADA ✓", 1800);
-        }
-        return true;
-      } else if (hasLocalData) {
-        isSyncingNow = false;
-        return await pushToFirestore(silent);
-      }
-    } else if (hasLocalData) {
-      isSyncingNow = false;
-      return await pushToFirestore(silent);
-    }
-
-    renderConnectedCloudBanner();
-    return true;
-  } catch (err) {
-    const errCode = err && err.code ? err.code : "erro-leitura";
-    updateCloudUI(
-      "ERRO DE PERMISSÃO",
-      `Falha ao ler nuvem (${errCode}). Verifique sua conta Google ou regras do Firestore.`,
-      true,
-      true,
-    );
-    return false;
-  } finally {
-    isSyncingNow = false;
-  }
-}
-
-async function pushToFirestore(silent = false) {
-  if (!fbDb || !currentCloudUser) return false;
-  isSyncingNow = true;
-  try {
-    const data = collectLocalAppData();
-    const nowTs = Date.now();
-    await fbDb
-      .collection("users")
-      .doc(currentCloudUser.uid)
-      .set(
-        {
-          displayName: currentCloudUser.displayName || "",
-          email: currentCloudUser.email || "",
-          data,
-          updatedAt: nowTs,
-        },
-        { merge: true },
-      );
-
-    localStorage.setItem("tamara_last_local_update", String(nowTs));
-    localStorage.setItem("tamara_last_cloud_sync_time", String(nowTs));
-    renderConnectedCloudBanner(nowTs);
-
-    if (!silent) {
-      showToast("DADOS SINCRONIZADOS NA NUVEM ✓", 2000);
-    }
-    return true;
-  } catch (err) {
-    const errCode = err && err.code ? err.code : "erro-envio";
-    const userLabel =
-      currentCloudUser.displayName || currentCloudUser.email || "Conta Google";
-    updateCloudUI(
-      "ERRO AO SINCRONIZAR",
-      `${userLabel} • Falha (${errCode}). Toque em SINCRONIZAR AGORA.`,
-      true,
-      true,
-    );
-    if (!silent) {
-      showToast(`FALHA NA NUVEM: ${errCode.toUpperCase()}`, 2600);
-    }
-    return false;
-  } finally {
-    isSyncingNow = false;
   }
 }
 
@@ -771,14 +1399,17 @@ async function loginWithGoogle() {
 
 async function logoutGoogle() {
   try {
-    detachFirestoreListener();
+    detachFirestoreListeners();
     if (fbAuth) {
       await fbAuth.signOut();
     }
     currentCloudUser = null;
+    await loadUserStateFromIDB("local");
+    renderWorkoutCards();
+    renderDashboard();
     updateCloudUI(
       "OFFLINE / LOCAL",
-      "Desconectado da conta Google. Seus dados continuam salvos neste aparelho.",
+      "Desconectado da conta Google. Seus dados continuam protegidos na sua conta.",
       false,
     );
     showToast("VOCÊ SAIU DA CONTA GOOGLE", 1800);
@@ -792,16 +1423,22 @@ async function manualCloudSync() {
     showToast("ENTRE COM O GOOGLE PRIMEIRO", 1800);
     return;
   }
-  await syncCloudBidirectional(false);
+  await fullSyncCycle(false);
 }
 
 window.loginWithGoogle = loginWithGoogle;
 window.logoutGoogle = logoutGoogle;
 window.manualCloudSync = manualCloudSync;
-window.pushToFirestore = pushToFirestore;
 
-function initApp() {
+/* =========================================================
+   INICIALIZAÇÃO E RASCUNHO DO TREINO EM ANDAMENTO
+   ========================================================= */
+async function initApp() {
   try {
+    await openLocalDB();
+    await migrateLegacyDataIfNeeded("local");
+    await loadUserStateFromIDB("local");
+
     initFirebaseSafely();
 
     const mcDateInput = document.getElementById("mcDate");
@@ -813,7 +1450,7 @@ function initApp() {
     renderDashboard();
     registerSW();
 
-    const savedSession = getSavedActiveSession();
+    const savedSession = stateCache.activeSession;
     if (
       savedSession &&
       savedSession.workoutKey &&
@@ -833,20 +1470,8 @@ function registerSW() {
   }
 }
 
-function getSavedActiveSession() {
-  const data = safeReadJSON(ACTIVE_SESSION_KEY, null);
-  if (
-    !data ||
-    typeof data !== "object" ||
-    !data.workoutKey ||
-    !workoutData[data.workoutKey]
-  ) {
-    return null;
-  }
-  return data;
-}
-
-function saveActiveSessionState() {
+async function saveActiveSessionState() {
+  const userId = getActiveUserId();
   let hasAnyProgress = Boolean(cardioState.done);
   Object.values(activeWorkoutState).forEach((sets) => {
     if (Array.isArray(sets) && sets.some((s) => s && s.done)) {
@@ -855,25 +1480,30 @@ function saveActiveSessionState() {
   });
 
   if (!hasAnyProgress) {
-    localStorage.removeItem(ACTIVE_SESSION_KEY);
+    stateCache.activeSession = null;
+    await idbDelete("active_sessions", userId);
     return;
   }
 
   const payload = {
+    userId,
     workoutKey: currentWorkoutKey,
     setsState: activeWorkoutState,
     cardioState: cardioState,
     updatedAt: Date.now(),
   };
-  localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(payload));
+  stateCache.activeSession = payload;
+  await idbPut("active_sessions", payload);
 }
 
-function clearSavedActiveSession() {
-  localStorage.removeItem(ACTIVE_SESSION_KEY);
+async function clearSavedActiveSession() {
+  const userId = getActiveUserId();
+  stateCache.activeSession = null;
+  await idbDelete("active_sessions", userId);
 }
 
 function resumeActiveWorkout() {
-  const saved = getSavedActiveSession();
+  const saved = stateCache.activeSession;
   if (saved && saved.workoutKey) {
     openWorkout(saved.workoutKey, true);
   }
@@ -904,7 +1534,7 @@ function renderWorkoutCards() {
   if (!container) return;
 
   const keys = Object.keys(workoutData);
-  const savedSession = getSavedActiveSession();
+  const savedSession = stateCache.activeSession;
 
   const banner = document.getElementById("resumeWorkoutBanner");
   if (banner) {
@@ -943,11 +1573,11 @@ function renderWorkoutCards() {
         <div class="workout-card ${isInProgress ? "in-progress-card" : ""}" onclick="openWorkout('${key}')">
           <div class="wc-left">
             <div class="wc-title-row">
-              <h2>${w.name}</h2>
+              <h2>${escapeHTML(w.name)}</h2>
               ${isInProgress ? `<span class="badge-in-progress">EM ANDAMENTO</span>` : ""}
             </div>
             <div class="wc-badges">
-              <span class="badge-primary">${w.tag}</span>
+              <span class="badge-primary">${escapeHTML(w.tag)}</span>
               <span class="badge-neutral">${w.exercises.length} EXERCÍCIOS</span>
               ${isWeekend ? `<span class="badge-gold">+ POSTURA &amp; GLÚTEO</span>` : ""}
             </div>
@@ -965,8 +1595,7 @@ function openWorkout(key, isRestoring = false) {
 
   currentWorkoutKey = key;
   clearSelectedPhoto("workout");
-  const savedSetsStore = safeReadJSON("tamara_sets_v13", {});
-  const savedSession = getSavedActiveSession();
+  const savedSession = stateCache.activeSession;
 
   document.getElementById("detailWorkoutName").textContent = w.name;
   document.getElementById("detailWorkoutTag").textContent = w.tag;
@@ -996,8 +1625,9 @@ function openWorkout(key, isRestoring = false) {
   } else {
     activeWorkoutState = {};
     w.exercises.forEach((ex) => {
-      const saved = savedSetsStore[ex.id];
-      if (Array.isArray(saved) && saved.length > 0) {
+      const tpl = stateCache.templates[ex.id];
+      const saved = tpl && Array.isArray(tpl.sets) ? tpl.sets : null;
+      if (saved && saved.length > 0) {
         activeWorkoutState[ex.id] = saved.map((s) => ({
           load: Number(s.load) || 0,
           reps: Number(s.reps) || ex.defaultReps,
@@ -1055,8 +1685,8 @@ function resetCardioUI() {
 }
 
 function getExerciseMaxPR(exId) {
-  const prs = safeReadJSON("tamara_prs_v13", {});
-  return Number(prs[exId]) || 0;
+  const tpl = stateCache.templates[exId];
+  return tpl ? Number(tpl.pr) || 0 : 0;
 }
 
 function renderExerciseCards() {
@@ -1068,11 +1698,14 @@ function renderExerciseCards() {
     .map((ex) => {
       const sets = activeWorkoutState[ex.id] || [];
       const allDone = sets.length > 0 && sets.every((s) => s.done);
-      const currentMaxLoad = sets.length
-        ? Math.max(...sets.map((s) => Number(s.load) || 0))
+      // Recorde contabiliza apenas séries concluídas (done: true) + histórico de PR
+      const doneMaxLoad = sets.some((s) => s.done)
+        ? Math.max(
+            ...sets.filter((s) => s.done).map((s) => Number(s.load) || 0),
+          )
         : 0;
       const savedPR = getExerciseMaxPR(ex.id);
-      const displayPR = Math.max(currentMaxLoad, savedPR);
+      const displayPR = Math.max(doneMaxLoad, savedPR);
 
       const setsRowsHTML = sets
         .map(
@@ -1115,14 +1748,14 @@ function renderExerciseCards() {
           <div class="hud-ex-header">
             <div class="hud-ex-title-wrap">
               <div class="hud-ex-title-line">
-                <h3 class="hud-ex-title">${ex.name}</h3>
+                <h3 class="hud-ex-title">${escapeHTML(ex.name)}</h3>
                 <span class="hud-completed-pill">✓ CONCLUÍDO</span>
               </div>
               <div class="hud-ex-submeta">
                 ${displayPR > 0 ? `<span class="hud-pr-pill">🔥 RECORDE: ${displayPR} KG</span>` : `<span class="hud-target-pill">PESO CORPORAL</span>`}
-                <span class="hud-target-pill">ALVO: ${ex.targetReps}</span>
+                <span class="hud-target-pill">ALVO: ${escapeHTML(ex.targetReps)}</span>
               </div>
-              <div class="hud-ex-note">${ex.note}</div>
+              <div class="hud-ex-note">${escapeHTML(ex.note)}</div>
             </div>
           </div>
 
@@ -1147,28 +1780,28 @@ function renderExerciseCards() {
     .join("");
 }
 
-function adjustSetField(exId, setIdx, field, delta) {
+async function adjustSetField(exId, setIdx, field, delta) {
   const item = activeWorkoutState[exId] && activeWorkoutState[exId][setIdx];
   if (!item) return;
   const nextVal = Math.max(0, Number((Number(item[field]) + delta).toFixed(1)));
   item[field] = nextVal;
-  persistSetsTemplate(exId);
-  saveActiveSessionState();
+  await persistSetsTemplate(exId);
+  await saveActiveSessionState();
   renderExerciseCards();
   updateWorkoutTopMetrics();
 }
 
-function setFieldDirect(exId, setIdx, field, rawVal) {
+async function setFieldDirect(exId, setIdx, field, rawVal) {
   const item = activeWorkoutState[exId] && activeWorkoutState[exId][setIdx];
   if (!item) return;
   item[field] = Math.max(0, Number(rawVal) || 0);
-  persistSetsTemplate(exId);
-  saveActiveSessionState();
+  await persistSetsTemplate(exId);
+  await saveActiveSessionState();
   renderExerciseCards();
   updateWorkoutTopMetrics();
 }
 
-function toggleSetDone(exId, setIdx) {
+async function toggleSetDone(exId, setIdx) {
   const sets = activeWorkoutState[exId];
   if (!sets || !sets[setIdx]) return;
   sets[setIdx].done = !sets[setIdx].done;
@@ -1181,56 +1814,76 @@ function toggleSetDone(exId, setIdx) {
     }
   }
 
-  persistSetsTemplate(exId);
-  saveActiveSessionState();
+  await persistSetsTemplate(exId);
+  await saveActiveSessionState();
   renderExerciseCards();
   updateWorkoutTopMetrics();
 }
 
-function addExtraSet(exId) {
+async function addExtraSet(exId) {
   const sets = activeWorkoutState[exId];
   if (!sets) return;
   const last = sets[sets.length - 1] || { load: 10, reps: 12 };
   sets.push({ load: last.load, reps: last.reps, done: false });
-  persistSetsTemplate(exId);
-  saveActiveSessionState();
+  await persistSetsTemplate(exId);
+  await saveActiveSessionState();
   renderExerciseCards();
   updateWorkoutTopMetrics();
   showToast("+1 SÉRIE ADICIONADA", 1200);
 }
 
-function removeLastSet(exId) {
+async function removeLastSet(exId) {
   const sets = activeWorkoutState[exId];
   if (!sets || sets.length <= 1) {
     showToast("MÍNIMO DE 1 SÉRIE OBRIGATÓRIA", 1300);
     return;
   }
   sets.pop();
-  persistSetsTemplate(exId);
-  saveActiveSessionState();
+  await persistSetsTemplate(exId);
+  await saveActiveSessionState();
   renderExerciseCards();
   updateWorkoutTopMetrics();
   showToast("−1 SÉRIE REMOVIDA", 1200);
 }
 
-function persistSetsTemplate(exId) {
-  const savedSetsStore = safeReadJSON("tamara_sets_v13", {});
-  savedSetsStore[exId] = activeWorkoutState[exId].map((s) => ({
-    load: s.load,
-    reps: s.reps,
-  }));
-  localStorage.setItem("tamara_sets_v13", JSON.stringify(savedSetsStore));
+async function persistSetsTemplate(exId) {
+  const userId = getActiveUserId();
+  const currentSets = activeWorkoutState[exId] || [];
+  const existingTpl = stateCache.templates[exId] || {
+    userId,
+    exId,
+    sets: [],
+    pr: 0,
+    updatedAt: 0,
+  };
 
-  const prs = safeReadJSON("tamara_prs_v13", {});
-  const maxNow = Math.max(
-    ...activeWorkoutState[exId].map((s) => Number(s.load) || 0),
-  );
-  if (maxNow > (Number(prs[exId]) || 0)) {
-    prs[exId] = maxNow;
-    localStorage.setItem("tamara_prs_v13", JSON.stringify(prs));
+  // Só contabiliza recorde (PR) se a série estiver concluída (done === true)
+  const completedLoads = currentSets
+    .filter((s) => s && s.done)
+    .map((s) => Number(s.load) || 0);
+  const maxCompletedNow = completedLoads.length
+    ? Math.max(...completedLoads)
+    : 0;
+  const updatedPR = Math.max(Number(existingTpl.pr) || 0, maxCompletedNow);
+
+  const record = {
+    userId,
+    exId,
+    sets: currentSets.map((s) => ({
+      load: Number(s.load) || 0,
+      reps: Number(s.reps) || 0,
+    })),
+    pr: updatedPR,
+    updatedAt: Date.now(),
+  };
+
+  stateCache.templates[exId] = record;
+  await idbPut("templates", record);
+
+  if (userId !== "local") {
+    await enqueueSyncOp(userId, "templates", exId, "upsert", record);
+    flushSyncQueue();
   }
-
-  localStorage.setItem("tamara_last_local_update", String(Date.now()));
 }
 
 function updateWorkoutTopMetrics() {
@@ -1259,7 +1912,7 @@ function updateWorkoutTopMetrics() {
   document.getElementById("workoutProgressFill").style.width = `${pct}%`;
 }
 
-function clearCurrentWorkout() {
+async function clearCurrentWorkout() {
   const w = workoutData[currentWorkoutKey];
   w.exercises.forEach((ex) => {
     if (activeWorkoutState[ex.id]) {
@@ -1271,14 +1924,15 @@ function clearCurrentWorkout() {
   clearSelectedPhoto("workout");
   resetCardioUI();
   resetRestTimer();
-  clearSavedActiveSession();
+  await clearSavedActiveSession();
   renderExerciseCards();
   updateWorkoutTopMetrics();
-  pushToFirestore(true);
   showToast("SÉRIES E CARDIO DESMARCADOS ↺", 1600);
 }
 
-/* CARDIO */
+/* =========================================================
+   CARDIO
+   ========================================================= */
 function toggleCardioDrawer() {
   const panel = document.getElementById("cardioDrawerPanel");
   const trigger = document.getElementById("cardioDrawerTrigger");
@@ -1286,7 +1940,7 @@ function toggleCardioDrawer() {
   trigger.classList.toggle("collapsed", !isOpen);
 }
 
-function selectCardioMode(mode, icon) {
+async function selectCardioMode(mode, icon) {
   cardioState.mode = mode;
   cardioState.icon = icon;
   document.getElementById("selectedCardioName").textContent = mode;
@@ -1295,10 +1949,10 @@ function selectCardioMode(mode, icon) {
   document.querySelectorAll(".cardio-mode-btn").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.mode === mode);
   });
-  saveActiveSessionState();
+  await saveActiveSessionState();
 }
 
-function adjustCardioMetric(type, delta) {
+async function adjustCardioMetric(type, delta) {
   if (type === "time") {
     cardioState.time = Math.max(5, cardioState.time + delta);
     document.getElementById("cardioTimeVal").textContent = cardioState.time;
@@ -1306,52 +1960,61 @@ function adjustCardioMetric(type, delta) {
     cardioState.kcal = Math.max(10, cardioState.kcal + delta);
     document.getElementById("cardioKcalVal").textContent = cardioState.kcal;
   }
-  saveActiveSessionState();
+  await saveActiveSessionState();
 }
 
-function toggleCardioDone(checked) {
+async function toggleCardioDone(checked) {
   cardioState.done = checked;
   document
     .getElementById("cardioBox")
     .classList.toggle("cardio-completed", checked);
-  saveActiveSessionState();
+  await saveActiveSessionState();
   if (checked) {
     showToast(`CARDIO (${cardioState.mode}) CONCLUÍDO ✓`, 1500);
   }
 }
 
-/* REST TIMER */
+/* =========================================================
+   CRONÔMETRO PRECISO BASEADO EM TIMESTAMP (Date.now())
+   ========================================================= */
+function getRemainingTimerSeconds() {
+  if (!timerRunning || !timerEndTimestamp) return 60;
+  const diff = Math.ceil((timerEndTimestamp - Date.now()) / 1000);
+  return Math.max(0, diff);
+}
+
 function updateTimerDisplay() {
-  const mins = String(Math.floor(timerSeconds / 60)).padStart(2, "0");
-  const secs = String(timerSeconds % 60).padStart(2, "0");
+  const secsLeft = timerRunning ? getRemainingTimerSeconds() : 60;
+  const mins = String(Math.floor(secsLeft / 60)).padStart(2, "0");
+  const secs = String(secsLeft % 60).padStart(2, "0");
   const el = document.getElementById("restTimerDisplay");
   if (el) el.textContent = `${mins}:${secs}`;
 }
 
 function startRestTimer() {
   clearInterval(timerInterval);
-  timerSeconds = 60;
+  timerEndTimestamp = Date.now() + 60000;
   timerRunning = true;
   updateTimerDisplay();
 
   timerInterval = setInterval(() => {
-    timerSeconds--;
+    const remaining = getRemainingTimerSeconds();
     updateTimerDisplay();
-    if (timerSeconds <= 0) {
+    if (remaining <= 0) {
       clearInterval(timerInterval);
       timerRunning = false;
+      timerEndTimestamp = 0;
       showToast("DESCANSO CONCLUÍDO! PRÓXIMA SÉRIE ⚡", 2200);
-      timerSeconds = 60;
       updateTimerDisplay();
     }
-  }, 1000);
+  }, 250);
 }
 
 function toggleRestTimer() {
   if (timerRunning) {
     clearInterval(timerInterval);
     timerRunning = false;
-    timerSeconds = 60;
+    timerEndTimestamp = 0;
     updateTimerDisplay();
     showToast("TIMER REINICIADO (01:00)", 1200);
   } else {
@@ -1363,65 +2026,92 @@ function toggleRestTimer() {
 function resetRestTimer() {
   clearInterval(timerInterval);
   timerRunning = false;
-  timerSeconds = 60;
+  timerEndTimestamp = 0;
   updateTimerDisplay();
 }
 
-async function finishWorkoutSession() {
-  const w = workoutData[currentWorkoutKey];
-  const history = safeReadJSON("tamara_workout_history", []);
-  const todayISO = getTodayISO();
-
-  let totalVolume = 0;
-  w.exercises.forEach((ex) => {
-    (activeWorkoutState[ex.id] || []).forEach((s) => {
-      if (s.done) totalVolume += (Number(s.load) || 0) * (Number(s.reps) || 0);
-    });
-  });
-
-  const cardioSummary = cardioState.done
-    ? `${cardioState.mode} • ${cardioState.time} min (${cardioState.kcal} kcal)`
-    : "Não marcado";
-
-  history.unshift({
-    date: new Date().toLocaleDateString("pt-BR"),
-    isoDate: todayISO,
-    workoutKey: w.id,
-    workout: `${w.name} (${w.tag})`,
-    volumeKg: Math.round(totalVolume),
-    cardio: cardioSummary,
-    photo: pendingWorkoutPhoto || "",
-    isManual: false,
-  });
-
-  localStorage.setItem("tamara_workout_history", JSON.stringify(history));
-  localStorage.setItem("tamara_last_local_update", String(Date.now()));
-
-  clearSavedActiveSession();
-  clearSelectedPhoto("workout");
-  w.exercises.forEach((ex) => {
-    if (activeWorkoutState[ex.id]) {
-      activeWorkoutState[ex.id].forEach((s) => {
-        s.done = false;
-      });
-    }
-  });
-  resetCardioUI();
-  resetRestTimer();
-
-  selectedCalDateISO = todayISO;
-  calViewYear = new Date().getFullYear();
-  calViewMonth = new Date().getMonth();
-
-  showToast(`CHECK-IN ${w.name.toUpperCase()} REGISTRADO! ✓`, 2000);
-  renderDashboard();
-  await pushToFirestore(false);
-  setTimeout(() => navigateTo("dashboardScreen"), 500);
-}
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && timerRunning) {
+    updateTimerDisplay();
+  }
+});
 
 /* =========================================================
-   CHECK-IN MANUAL PARA OUTROS ESPORTES / ATIVIDADES
+   FINALIZAR TREINO & CHECK-IN MANUAL (REGISTROS INDIVIDUAIS)
    ========================================================= */
+async function finishWorkoutSession() {
+  if (isSavingCheckin) return;
+  isSavingCheckin = true;
+
+  try {
+    const userId = getActiveUserId();
+    const w = workoutData[currentWorkoutKey];
+    const todayISO = getTodayISO();
+    const now = Date.now();
+
+    let totalVolume = 0;
+    w.exercises.forEach((ex) => {
+      (activeWorkoutState[ex.id] || []).forEach((s) => {
+        if (s.done)
+          totalVolume += (Number(s.load) || 0) * (Number(s.reps) || 0);
+      });
+    });
+
+    const cardioSummary = cardioState.done
+      ? `${cardioState.mode} • ${cardioState.time} min (${cardioState.kcal} kcal)`
+      : "Não marcado";
+
+    const checkinId = generateUID();
+    const record = {
+      userId,
+      id: checkinId,
+      date: new Date().toLocaleDateString("pt-BR"),
+      isoDate: todayISO,
+      workoutKey: w.id,
+      workout: `${w.name} (${w.tag})`,
+      volumeKg: Math.round(totalVolume),
+      cardio: cardioSummary,
+      photo: pendingWorkoutPhoto || "",
+      isManual: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await idbPut("checkins", record);
+    stateCache.checkins.unshift(record);
+
+    if (userId !== "local") {
+      await enqueueSyncOp(userId, "checkins", checkinId, "upsert", record);
+    }
+
+    await clearSavedActiveSession();
+    clearSelectedPhoto("workout");
+    w.exercises.forEach((ex) => {
+      if (activeWorkoutState[ex.id]) {
+        activeWorkoutState[ex.id].forEach((s) => {
+          s.done = false;
+        });
+      }
+    });
+    resetCardioUI();
+    resetRestTimer();
+
+    selectedCalDateISO = todayISO;
+    calViewYear = new Date().getFullYear();
+    calViewMonth = new Date().getMonth();
+
+    showToast(`CHECK-IN ${w.name.toUpperCase()} REGISTRADO! ✓`, 2000);
+    renderDashboard();
+
+    if (userId !== "local") {
+      await flushSyncQueue();
+    }
+    setTimeout(() => navigateTo("dashboardScreen"), 450);
+  } finally {
+    isSavingCheckin = false;
+  }
+}
+
 function applyQuickSport(name, icon) {
   const actInput = document.getElementById("mcActivity");
   if (!actInput) return;
@@ -1430,6 +2120,8 @@ function applyQuickSport(name, icon) {
 }
 
 async function saveManualCheckin() {
+  if (isSavingCheckin) return;
+
   const rawActivity = document.getElementById("mcActivity").value.trim();
   const dateISO = document.getElementById("mcDate").value || getTodayISO();
   const duration = document.getElementById("mcDuration").value.trim();
@@ -1440,47 +2132,65 @@ async function saveManualCheckin() {
     return;
   }
 
-  const history = safeReadJSON("tamara_workout_history", []);
-  const cleanLabel =
-    rawActivity.replace(/^[^\wÀ-ú]+\s*/, "").trim() || rawActivity;
-  const shortTag = cleanLabel.slice(0, 6).toUpperCase();
+  isSavingCheckin = true;
+  try {
+    const userId = getActiveUserId();
+    const now = Date.now();
+    const cleanLabel =
+      rawActivity.replace(/^[^\wÀ-ú]+\s*/, "").trim() || rawActivity;
+    const shortTag = cleanLabel.slice(0, 6).toUpperCase();
 
-  const detailsParts = [];
-  if (duration) detailsParts.push(`${duration} min`);
-  if (note) detailsParts.push(note);
-  const detailsText = detailsParts.length
-    ? detailsParts.join(" • ")
-    : "Check-in manual";
+    const detailsParts = [];
+    if (duration) detailsParts.push(`${duration} min`);
+    if (note) detailsParts.push(note);
+    const detailsText = detailsParts.length
+      ? detailsParts.join(" • ")
+      : "Check-in manual";
 
-  history.unshift({
-    date: isoToBR(dateISO),
-    isoDate: dateISO,
-    workoutKey: shortTag,
-    workout: `${rawActivity} (CHECK-IN MANUAL)`,
-    volumeKg: 0,
-    cardio: detailsText,
-    photo: pendingManualPhoto || "",
-    isManual: true,
-  });
+    const checkinId = generateUID();
+    const record = {
+      userId,
+      id: checkinId,
+      date: isoToBR(dateISO),
+      isoDate: dateISO,
+      workoutKey: shortTag,
+      workout: `${rawActivity} (CHECK-IN MANUAL)`,
+      volumeKg: 0,
+      cardio: detailsText,
+      photo: pendingManualPhoto || "",
+      isManual: true,
+      createdAt: now,
+      updatedAt: now,
+    };
 
-  localStorage.setItem("tamara_workout_history", JSON.stringify(history));
-  localStorage.setItem("tamara_last_local_update", String(Date.now()));
+    await idbPut("checkins", record);
+    stateCache.checkins.unshift(record);
 
-  document.getElementById("mcActivity").value = "";
-  document.getElementById("mcDuration").value = "";
-  document.getElementById("mcNote").value = "";
-  clearSelectedPhoto("manual");
+    if (userId !== "local") {
+      await enqueueSyncOp(userId, "checkins", checkinId, "upsert", record);
+    }
 
-  const [y, m] = dateISO.split("-").map(Number);
-  if (y && m) {
-    calViewYear = y;
-    calViewMonth = m - 1;
+    document.getElementById("mcActivity").value = "";
+    document.getElementById("mcDuration").value = "";
+    document.getElementById("mcNote").value = "";
+    clearSelectedPhoto("manual");
+
+    const [y, m] = dateISO.split("-").map(Number);
+    if (y && m) {
+      calViewYear = y;
+      calViewMonth = m - 1;
+    }
+    selectedCalDateISO = dateISO;
+
+    renderDashboard();
+    showToast(`CHECK-IN "${cleanLabel.toUpperCase()}" SALVO ✓`, 2000);
+
+    if (userId !== "local") {
+      await flushSyncQueue();
+    }
+  } finally {
+    isSavingCheckin = false;
   }
-  selectedCalDateISO = dateISO;
-
-  renderDashboard();
-  showToast(`CHECK-IN "${cleanLabel.toUpperCase()}" SALVO ✓`, 2000);
-  await pushToFirestore(false);
 }
 
 /* =========================================================
@@ -1546,7 +2256,7 @@ function renderGymRatsCalendar() {
   const gridEl = document.getElementById("calDaysGrid");
   if (!gridEl) return;
 
-  const history = safeReadJSON("tamara_workout_history", []);
+  const history = stateCache.checkins || [];
   const monthNames = [
     "JANEIRO",
     "FEVEREIRO",
@@ -1566,12 +2276,12 @@ function renderGymRatsCalendar() {
     `${monthNames[calViewMonth]} ${calViewYear}`;
 
   const checkinsMap = {};
-  history.forEach((h, idx) => {
+  history.forEach((h) => {
     if (!h) return;
     const iso = h.isoDate || brToISO(h.date);
     if (!iso) return;
     if (!checkinsMap[iso]) checkinsMap[iso] = [];
-    checkinsMap[iso].push({ ...h, _histIndex: idx });
+    checkinsMap[iso].push(h);
   });
 
   const firstDayWeekday = new Date(calViewYear, calViewMonth, 1).getDay();
@@ -1617,7 +2327,7 @@ function renderGymRatsCalendar() {
           .trim();
         return clean.slice(0, 5).toUpperCase() || "✓";
       });
-      badgeText = labels.join("+");
+      badgeText = escapeHTML(labels.join("+"));
     }
 
     cellsHTML += `
@@ -1647,13 +2357,16 @@ function renderGymRatsCalendar() {
     badgeEl.classList.add("active-checkin");
     contentEl.innerHTML = selLogs
       .map((l) => {
+        const safeId = escapeHTML(l.id);
+        const safeWorkout = escapeHTML(l.workout);
+        const safeCardio = escapeHTML(l.cardio || "");
         const photoHTML = l.photo
-          ? `<img class="cdd-photo-thumb" src="${l.photo}" alt="Foto do treino" onclick="openPhotoLightboxByIndex(${l._histIndex})" /><div class="cdd-photo-hint">🔍 Toque na foto para ampliar</div>`
+          ? `<img class="cdd-photo-thumb" src="${l.photo}" alt="Foto do treino" onclick="openPhotoLightboxById('${safeId}')" /><div class="cdd-photo-hint">🔍 Toque na foto para ampliar</div>`
           : "";
         if (l.isManual) {
-          return `<div>• <strong>${l.workout}</strong><br/>&nbsp;&nbsp;Detalhes: ${l.cardio || ""}${photoHTML}</div>`;
+          return `<div>• <strong>${safeWorkout}</strong><br/>&nbsp;&nbsp;Detalhes: ${safeCardio}${photoHTML}</div>`;
         }
-        return `<div>• <strong>${l.workout}</strong>${l.volumeKg ? ` (${l.volumeKg} kg movidos)` : ""}<br/>&nbsp;&nbsp;Cardio: ${l.cardio || ""}${photoHTML}</div>`;
+        return `<div>• <strong>${safeWorkout}</strong>${l.volumeKg ? ` (${Number(l.volumeKg)} kg movidos)` : ""}<br/>&nbsp;&nbsp;Cardio: ${safeCardio}${photoHTML}</div>`;
       })
       .join(
         "<hr style='border:0;border-top:1px solid rgba(56,214,255,0.12);margin:8px 0;'/>",
@@ -1665,7 +2378,9 @@ function renderGymRatsCalendar() {
   }
 }
 
-/* MEDIDAS CORPORAIS */
+/* =========================================================
+   MEDIDAS CORPORAIS (REGISTROS INDIVIDUAIS)
+   ========================================================= */
 async function saveMeasurements() {
   const peso = document.getElementById("mPeso").value.trim();
   const torax = document.getElementById("mTorax").value.trim();
@@ -1692,8 +2407,13 @@ async function saveMeasurements() {
     return;
   }
 
-  const list = safeReadJSON("tamara_measures_list", []);
-  list.unshift({
+  const userId = getActiveUserId();
+  const now = Date.now();
+  const measureId = generateUID();
+
+  const record = {
+    userId,
+    id: measureId,
     date: new Date().toLocaleDateString("pt-BR"),
     peso: peso || "-",
     torax: torax || "-",
@@ -1704,18 +2424,28 @@ async function saveMeasurements() {
     bracoE: bracoE || "-",
     coxaD: coxaD || "-",
     coxaE: coxaE || "-",
-  });
+    createdAt: now,
+    updatedAt: now,
+  };
 
-  localStorage.setItem("tamara_measures_list", JSON.stringify(list));
-  localStorage.setItem("tamara_last_local_update", String(Date.now()));
+  await idbPut("measures", record);
+  stateCache.measures.unshift(record);
+
+  if (userId !== "local") {
+    await enqueueSyncOp(userId, "measures", measureId, "upsert", record);
+  }
+
   renderDashboard();
   showToast("MEDIDAS SALVAS COM SUCESSO ✓", 1800);
-  await pushToFirestore(false);
+
+  if (userId !== "local") {
+    await flushSyncQueue();
+  }
 }
 
 function renderDashboard() {
-  const history = safeReadJSON("tamara_workout_history", []);
-  const measures = safeReadJSON("tamara_measures_list", []);
+  const history = stateCache.checkins || [];
+  const measures = stateCache.measures || [];
   const streak = calculateStreak(history);
 
   document.getElementById("homeTotalSessions").textContent = history.length;
@@ -1744,12 +2474,12 @@ function renderDashboard() {
         (m) => `
         <div class="measure-history-card">
           <div class="measure-history-top">
-            <span>${m.date || ""}</span>
-            <span>PESO: ${m.peso || "-"} KG</span>
+            <span>${escapeHTML(m.date || "")}</span>
+            <span>PESO: ${escapeHTML(m.peso || "-")} KG</span>
           </div>
           <div class="measure-history-vals">
-            Tórax: <strong>${m.torax || "-"}</strong> cm • Cintura: <strong>${m.cintura || "-"}</strong> cm • Abdômen: <strong>${m.abdomen || "-"}</strong> cm • Quadril: <strong>${m.quadril || "-"}</strong> cm<br/>
-            Braço D/E: <strong>${m.bracoD || "-"}</strong> / <strong>${m.bracoE || "-"}</strong> cm • Coxa D/E: <strong>${m.coxaD || "-"}</strong> / <strong>${m.coxaE || "-"}</strong> cm
+            Tórax: <strong>${escapeHTML(m.torax || "-")}</strong> cm • Cintura: <strong>${escapeHTML(m.cintura || "-")}</strong> cm • Abdômen: <strong>${escapeHTML(m.abdomen || "-")}</strong> cm • Quadril: <strong>${escapeHTML(m.quadril || "-")}</strong> cm<br/>
+            Braço D/E: <strong>${escapeHTML(m.bracoD || "-")}</strong> / <strong>${escapeHTML(m.bracoE || "-")}</strong> cm • Coxa D/E: <strong>${escapeHTML(m.coxaD || "-")}</strong> / <strong>${escapeHTML(m.coxaE || "-")}</strong> cm
           </div>
         </div>
       `,
@@ -1764,14 +2494,14 @@ function renderDashboard() {
     wListEl.innerHTML = history
       .slice(0, 20)
       .map(
-        (h, idx) => `
+        (h) => `
         <div class="measure-history-card">
           <div class="measure-history-top">
-            <span>${h.workout || "Treino"}</span>
-            <span>${h.date || ""}</span>
+            <span>${escapeHTML(h.workout || "Treino")}</span>
+            <span>${escapeHTML(h.date || "")}</span>
           </div>
-          <div class="measure-history-vals">${h.isManual ? "Atividade" : "Cardio pós-treino"}: <strong>${h.cardio || "Não marcado"}</strong></div>
-          ${h.photo ? `<img class="history-photo-mini" src="${h.photo}" alt="Foto check-in" onclick="openPhotoLightboxByIndex(${idx})" />` : ""}
+          <div class="measure-history-vals">${h.isManual ? "Atividade" : "Cardio pós-treino"}: <strong>${escapeHTML(h.cardio || "Não marcado")}</strong></div>
+          ${h.photo ? `<img class="history-photo-mini" src="${h.photo}" alt="Foto check-in" onclick="openPhotoLightboxById('${escapeHTML(h.id)}')" />` : ""}
         </div>
       `,
       )
@@ -1779,13 +2509,16 @@ function renderDashboard() {
   }
 }
 
-/* BACKUP JSON & LIMPEZA TOTAL */
+/* =========================================================
+   BACKUP JSON & LIMPEZA TOTAL (COM TOMBSTONES EXPLÍCITOS)
+   ========================================================= */
 function exportBackupJSON() {
   const payload = {
-    tamara_sets_v13: safeReadJSON("tamara_sets_v13", {}),
-    tamara_prs_v13: safeReadJSON("tamara_prs_v13", {}),
-    tamara_workout_history: safeReadJSON("tamara_workout_history", []),
-    tamara_measures_list: safeReadJSON("tamara_measures_list", []),
+    version: 3,
+    exportedAt: new Date().toISOString(),
+    checkins: stateCache.checkins,
+    measures: stateCache.measures,
+    templates: stateCache.templates,
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: "application/json",
@@ -1806,19 +2539,108 @@ function importBackupJSON(event) {
   reader.onload = async (e) => {
     try {
       const data = JSON.parse(e.target.result);
-      CLOUD_SYNC_KEYS.forEach((key) => {
-        if (data[key] !== undefined && data[key] !== null) {
-          const val =
-            typeof data[key] === "string"
-              ? data[key]
-              : JSON.stringify(data[key]);
-          localStorage.setItem(key, val);
+      const userId = getActiveUserId();
+      const now = Date.now();
+
+      // Suporta tanto backup v3 quanto backup antigo v2
+      if (Array.isArray(data.checkins)) {
+        for (const item of data.checkins) {
+          const id = item.id || generateUID();
+          const record = { ...item, userId, id, updatedAt: now };
+          await idbPut("checkins", record);
+          if (userId !== "local") {
+            await enqueueSyncOp(userId, "checkins", id, "upsert", record);
+          }
         }
-      });
-      localStorage.setItem("tamara_last_local_update", String(Date.now()));
+      } else if (data.tamara_workout_history) {
+        const arr =
+          typeof data.tamara_workout_history === "string"
+            ? JSON.parse(data.tamara_workout_history)
+            : data.tamara_workout_history;
+        if (Array.isArray(arr)) {
+          for (let i = 0; i < arr.length; i++) {
+            const item = arr[i];
+            const id = item.id || generateUID();
+            const record = {
+              userId,
+              id,
+              date: item.date || "",
+              isoDate: item.isoDate || brToISO(item.date) || getTodayISO(),
+              workoutKey: item.workoutKey || "",
+              workout: item.workout || "Treino",
+              volumeKg: Number(item.volumeKg) || 0,
+              cardio: item.cardio || "",
+              photo: item.photo || "",
+              isManual: Boolean(item.isManual),
+              createdAt: now - i * 1000,
+              updatedAt: now,
+            };
+            await idbPut("checkins", record);
+            if (userId !== "local") {
+              await enqueueSyncOp(userId, "checkins", id, "upsert", record);
+            }
+          }
+        }
+      }
+
+      if (Array.isArray(data.measures)) {
+        for (const item of data.measures) {
+          const id = item.id || generateUID();
+          const record = { ...item, userId, id, updatedAt: now };
+          await idbPut("measures", record);
+          if (userId !== "local") {
+            await enqueueSyncOp(userId, "measures", id, "upsert", record);
+          }
+        }
+      } else if (data.tamara_measures_list) {
+        const arr =
+          typeof data.tamara_measures_list === "string"
+            ? JSON.parse(data.tamara_measures_list)
+            : data.tamara_measures_list;
+        if (Array.isArray(arr)) {
+          for (let i = 0; i < arr.length; i++) {
+            const m = arr[i];
+            const id = m.id || generateUID();
+            const record = {
+              userId,
+              id,
+              date: m.date || "",
+              peso: m.peso || "-",
+              torax: m.torax || "-",
+              cintura: m.cintura || "-",
+              abdomen: m.abdomen || "-",
+              quadril: m.quadril || "-",
+              bracoD: m.bracoD || "-",
+              bracoE: m.bracoE || "-",
+              coxaD: m.coxaD || "-",
+              coxaE: m.coxaE || "-",
+              createdAt: now - i * 1000,
+              updatedAt: now,
+            };
+            await idbPut("measures", record);
+            if (userId !== "local") {
+              await enqueueSyncOp(userId, "measures", id, "upsert", record);
+            }
+          }
+        }
+      }
+
+      if (data.templates && typeof data.templates === "object") {
+        for (const [exId, tpl] of Object.entries(data.templates)) {
+          const record = { ...tpl, userId, exId, updatedAt: now };
+          await idbPut("templates", record);
+          if (userId !== "local") {
+            await enqueueSyncOp(userId, "templates", exId, "upsert", record);
+          }
+        }
+      }
+
+      await loadUserStateFromIDB(userId);
       renderWorkoutCards();
       renderDashboard();
-      await pushToFirestore(false);
+      if (userId !== "local") {
+        await flushSyncQueue();
+      }
       showToast("BACKUP RESTAURADO COM SUCESSO ✓", 2000);
     } catch {
       showToast("ARQUIVO JSON INVÁLIDO!", 1800);
@@ -1835,15 +2657,47 @@ async function resetAllAppData() {
   );
   if (!confirmed) return;
 
-  CLOUD_SYNC_KEYS.forEach((key) => localStorage.removeItem(key));
-  localStorage.removeItem("tamara_active_session_v17");
-  localStorage.removeItem("tamara_last_cloud_sync_time");
-  localStorage.setItem("tamara_last_local_update", String(Date.now()));
-  clearSavedActiveSession();
+  const userId = getActiveUserId();
+  const now = Date.now();
 
+  // Registra tombstones explícitos para evitar que outro dispositivo ressuscite os itens
+  if (userId !== "local") {
+    for (const c of stateCache.checkins) {
+      await idbPut("tombstones", { userId, id: c.id, deletedAt: now });
+      await enqueueSyncOp(userId, "checkins", c.id, "delete", null);
+      await enqueueSyncOp(userId, "tombstones", c.id, "upsert", {
+        targetId: c.id,
+        deletedAt: now,
+      });
+    }
+    for (const m of stateCache.measures) {
+      await idbPut("tombstones", { userId, id: m.id, deletedAt: now });
+      await enqueueSyncOp(userId, "measures", m.id, "delete", null);
+      await enqueueSyncOp(userId, "tombstones", m.id, "upsert", {
+        targetId: m.id,
+        deletedAt: now,
+      });
+    }
+    for (const exId of Object.keys(stateCache.templates)) {
+      await enqueueSyncOp(userId, "templates", exId, "delete", null);
+    }
+  }
+
+  await idbClearUserStore("checkins", userId);
+  await idbClearUserStore("measures", userId);
+  await idbClearUserStore("templates", userId);
+  await clearSavedActiveSession();
+
+  LEGACY_KEYS.forEach((key) => localStorage.removeItem(key));
+  localStorage.removeItem(LEGACY_ACTIVE_KEY);
+
+  await loadUserStateFromIDB(userId);
   renderWorkoutCards();
   renderDashboard();
-  await pushToFirestore(false);
+
+  if (userId !== "local") {
+    await flushSyncQueue();
+  }
   showToast("TODOS OS DADOS FORAM LIMPOS 🗑️", 2000);
 }
 
@@ -1855,16 +2709,14 @@ function showToast(msg, duration = 1600) {
   setTimeout(() => t.classList.remove("show"), duration);
 }
 
+window.addEventListener("online", () => {
+  if (currentCloudUser) {
+    flushSyncQueue();
+  }
+});
+
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", initApp);
 } else {
   initApp();
 }
-
-window.addEventListener("load", () => {
-  initFirebaseSafely();
-  const container = document.getElementById("workoutCardsList");
-  if (container && !container.innerHTML.trim()) {
-    initApp();
-  }
-});
