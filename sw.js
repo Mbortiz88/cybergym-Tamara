@@ -1,20 +1,23 @@
-const CACHE_NAME = "tamara-cybergym-hud-v2.0.4";
-const ASSETS = [
+const CACHE_NAME = "tamara-fitness-v3.0.0";
+
+const PRECACHE_ASSETS = [
   "./",
   "./index.html",
   "./style.css?v=2.0.4",
-  "./script.js?v=2.0.4",
+  "./script.js?v=3.0.0",
   "./manifest.json",
   "./icon-512.jpg",
 ];
 
+// Instalação: guarda os arquivos essenciais e ativa imediatamente
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)),
-  );
   self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_ASSETS)),
+  );
 });
 
+// Ativação: apaga qualquer cache de versões antigas (v1, v2, etc.)
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
@@ -23,35 +26,36 @@ self.addEventListener("activate", (event) => {
         Promise.all(
           keys
             .filter((key) => key !== CACHE_NAME)
-            .map((key) => caches.delete(key)),
+            .map((oldKey) => caches.delete(oldKey)),
         ),
-      ),
+      )
+      .then(() => self.clients.claim()),
   );
-  self.clients.claim();
 });
 
+// Interceptação de requisições: Network-First para arquivos do app
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
+  const req = event.request;
+  if (req.method !== "GET") return;
 
-  if (
-    event.request.url.includes("googleapis.com") ||
-    event.request.url.includes("gstatic.com") ||
-    event.request.url.includes("firebase")
-  ) {
+  const url = new URL(req.url);
+
+  // Deixa requisições externas (Firebase, Google Fonts, Auth) passarem direto pela rede
+  if (url.origin !== self.location.origin) {
     return;
   }
 
   event.respondWith(
-    fetch(event.request)
-      .then((res) => {
-        if (res && res.status === 200) {
-          const clone = res.clone();
-          caches
-            .open(CACHE_NAME)
-            .then((cache) => cache.put(event.request, clone));
+    fetch(req)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(req, responseClone);
+          });
         }
-        return res;
+        return networkResponse;
       })
-      .catch(() => caches.match(event.request)),
+      .catch(() => caches.match(req)),
   );
 });
