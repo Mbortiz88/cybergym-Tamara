@@ -15,6 +15,15 @@ let fbApp = null;
 let fbAuth = null;
 let fbDb = null;
 let currentCloudUser = null;
+let firestoreUnsubscribe = null;
+let isSyncingNow = false;
+
+const CLOUD_SYNC_KEYS = [
+  "tamara_sets_v13",
+  "tamara_prs_v13",
+  "tamara_workout_history",
+  "tamara_measures_list",
+];
 
 const workoutData = {
   A: {
@@ -417,7 +426,7 @@ function closePhotoLightbox() {
 }
 
 /* =========================================================
-   CAMADA DE SINCRONIZAÇÃO NUVEM SIMPLIFICADA (FIREBASE)
+   CAMADA DE SINCRONIZAÇÃO NUVEM (FIREBASE + TEMPO REAL)
    ========================================================= */
 function isFirebaseConfigured() {
   return Boolean(
@@ -480,6 +489,46 @@ function renderConnectedCloudBanner(syncTs) {
   updateCloudUI("ATIVO • SINCRONIZADO", infoMsg, true, false);
 }
 
+function detachFirestoreListener() {
+  if (typeof firestoreUnsubscribe === "function") {
+    firestoreUnsubscribe();
+    firestoreUnsubscribe = null;
+  }
+}
+
+function attachFirestoreRealtimeListener() {
+  if (!fbDb || !currentCloudUser) return;
+  detachFirestoreListener();
+
+  const userDocRef = fbDb.collection("users").doc(currentCloudUser.uid);
+  firestoreUnsubscribe = userDocRef.onSnapshot(
+    (docSnap) => {
+      if (!docSnap.exists || isSyncingNow) return;
+      const remote = docSnap.data() || {};
+      const remoteData = remote.data || remote.payload || null;
+      const remoteUpdatedAt = Number(remote.updatedAt) || 0;
+      const localUpdatedAt =
+        Number(localStorage.getItem("tamara_last_local_update")) || 0;
+
+      if (remoteData && remoteUpdatedAt > localUpdatedAt) {
+        applyCloudDataToLocal(remoteData);
+        localStorage.setItem(
+          "tamara_last_local_update",
+          String(remoteUpdatedAt),
+        );
+        localStorage.setItem(
+          "tamara_last_cloud_sync_time",
+          String(remoteUpdatedAt),
+        );
+        renderConnectedCloudBanner(remoteUpdatedAt);
+      }
+    },
+    (err) => {
+      console.warn("Snapshot Firestore:", err && err.code);
+    },
+  );
+}
+
 function initFirebaseSafely() {
   if (
     !isFirebaseConfigured() ||
@@ -505,12 +554,17 @@ function initFirebaseSafely() {
 
     if (fbAuth && !fbAuth._tamaraAuthAttached) {
       fbAuth._tamaraAuthAttached = true;
+
+      fbAuth.getRedirectResult().catch(() => {});
+
       fbAuth.onAuthStateChanged(async (user) => {
         currentCloudUser = user || null;
         if (user) {
           renderConnectedCloudBanner();
-          await syncCloudOnAuth();
+          await syncCloudBidirectional(true);
+          attachFirestoreRealtimeListener();
         } else {
+          detachFirestoreListener();
           updateCloudUI(
             "OFFLINE / LOCAL",
             "Conecte sua conta Google para sincronizar treinos, check-ins, fotos, recordes e medidas automaticamente.",
@@ -531,14 +585,7 @@ function initFirebaseSafely() {
 
 function collectLocalAppData() {
   const payload = {};
-  const allowedKeys = [
-    "tamara_sets_v13",
-    "tamara_prs_v13",
-    "tamara_workout_history",
-    "tamara_measures_list",
-  ];
-
-  allowedKeys.forEach((key) => {
+  CLOUD_SYNC_KEYS.forEach((key) => {
     const val = localStorage.getItem(key);
     if (val !== null) {
       payload[key] = val;
@@ -547,7 +594,10 @@ function collectLocalAppData() {
 
   // Proteção contra limite de 1 MB do Firestore por documento
   let serialized = JSON.stringify(payload);
-  if (serialized.length > 850000 && payload.tamara_workout_history) {
+  if (
+    serialized.length > MAX_FIRESTORE_PAYLOAD_BYTES &&
+    payload.tamara_workout_history
+  ) {
     try {
       const hist = JSON.parse(payload.tamara_workout_history);
       if (Array.isArray(hist)) {
@@ -560,7 +610,10 @@ function collectLocalAppData() {
     } catch {}
   }
 
-  if (serialized.length > 920000 && payload.tamara_workout_history) {
+  if (
+    serialized.length > MAX_FIRESTORE_PAYLOAD_BYTES + 70000 &&
+    payload.tamara_workout_history
+  ) {
     try {
       const hist = JSON.parse(payload.tamara_workout_history);
       if (Array.isArray(hist)) {
@@ -576,13 +629,7 @@ function collectLocalAppData() {
 
 function applyCloudDataToLocal(data) {
   if (!data || typeof data !== "object") return;
-  const allowedKeys = [
-    "tamara_sets_v13",
-    "tamara_prs_v13",
-    "tamara_workout_history",
-    "tamara_measures_list",
-  ];
-  allowedKeys.forEach((key) => {
+  CLOUD_SYNC_KEYS.forEach((key) => {
     if (typeof data[key] === "string") {
       localStorage.setItem(key, data[key]);
     }
@@ -591,12 +638,17 @@ function applyCloudDataToLocal(data) {
   renderDashboard();
 }
 
-async function syncCloudOnAuth() {
+async function syncCloudBidirectional(silent = false) {
   if (!fbDb || !currentCloudUser) return false;
+  if (isSyncingNow) return false;
+
+  isSyncingNow = true;
   try {
     const userDocRef = fbDb.collection("users").doc(currentCloudUser.uid);
     const docSnap = await userDocRef.get();
 
+    const localData = collectLocalAppData();
+    const hasLocalData = Object.keys(localData).length > 0;
     const localUpdatedAt =
       Number(localStorage.getItem("tamara_last_local_update")) || 0;
 
@@ -605,21 +657,29 @@ async function syncCloudOnAuth() {
       const remoteData = remote.data || remote.payload || null;
       const remoteUpdatedAt = Number(remote.updatedAt) || 0;
 
-      if (
-        localUpdatedAt > remoteUpdatedAt &&
-        Object.keys(collectLocalAppData()).length > 0
-      ) {
-        await pushToFirestore(true);
-      } else if (remoteData) {
+      if (localUpdatedAt > remoteUpdatedAt && hasLocalData) {
+        isSyncingNow = false;
+        return await pushToFirestore(silent);
+      } else if (remoteData && remoteUpdatedAt >= localUpdatedAt) {
         applyCloudDataToLocal(remoteData);
         const syncTime = remoteUpdatedAt || Date.now();
         localStorage.setItem("tamara_last_local_update", String(syncTime));
         localStorage.setItem("tamara_last_cloud_sync_time", String(syncTime));
         renderConnectedCloudBanner(syncTime);
+        if (!silent) {
+          showToast("NUVEM ATUALIZADA ✓", 1800);
+        }
+        return true;
+      } else if (hasLocalData) {
+        isSyncingNow = false;
+        return await pushToFirestore(silent);
       }
-    } else {
-      await pushToFirestore(true);
+    } else if (hasLocalData) {
+      isSyncingNow = false;
+      return await pushToFirestore(silent);
     }
+
+    renderConnectedCloudBanner();
     return true;
   } catch (err) {
     const errCode = err && err.code ? err.code : "erro-leitura";
@@ -630,11 +690,14 @@ async function syncCloudOnAuth() {
       true,
     );
     return false;
+  } finally {
+    isSyncingNow = false;
   }
 }
 
 async function pushToFirestore(silent = false) {
   if (!fbDb || !currentCloudUser) return false;
+  isSyncingNow = true;
   try {
     const data = collectLocalAppData();
     const nowTs = Date.now();
@@ -646,7 +709,6 @@ async function pushToFirestore(silent = false) {
           displayName: currentCloudUser.displayName || "",
           email: currentCloudUser.email || "",
           data,
-          payload: data,
           updatedAt: nowTs,
         },
         { merge: true },
@@ -674,6 +736,8 @@ async function pushToFirestore(silent = false) {
       showToast(`FALHA NA NUVEM: ${errCode.toUpperCase()}`, 2600);
     }
     return false;
+  } finally {
+    isSyncingNow = false;
   }
 }
 
@@ -686,15 +750,28 @@ async function loginWithGoogle() {
   try {
     if (!fbAuth) initFirebaseSafely();
     const provider = new window.firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
     await fbAuth.signInWithPopup(provider);
   } catch (err) {
     const errCode = err && err.code ? err.code : "";
+    if (
+      errCode === "auth/popup-blocked" ||
+      errCode === "auth/cancelled-popup-request" ||
+      errCode === "auth/operation-not-supported-in-this-environment"
+    ) {
+      try {
+        const provider = new window.firebase.auth.GoogleAuthProvider();
+        await fbAuth.signInWithRedirect(provider);
+        return;
+      } catch {}
+    }
     showToast(`LOGIN GOOGLE BLOQUEADO ${errCode}`, 2400);
   }
 }
 
 async function logoutGoogle() {
   try {
+    detachFirestoreListener();
     if (fbAuth) {
       await fbAuth.signOut();
     }
@@ -715,7 +792,7 @@ async function manualCloudSync() {
     showToast("ENTRE COM O GOOGLE PRIMEIRO", 1800);
     return;
   }
-  await pushToFirestore(false);
+  await syncCloudBidirectional(false);
 }
 
 window.loginWithGoogle = loginWithGoogle;
@@ -1152,6 +1229,8 @@ function persistSetsTemplate(exId) {
     prs[exId] = maxNow;
     localStorage.setItem("tamara_prs_v13", JSON.stringify(prs));
   }
+
+  localStorage.setItem("tamara_last_local_update", String(Date.now()));
 }
 
 function updateWorkoutTopMetrics() {
@@ -1727,31 +1806,24 @@ function importBackupJSON(event) {
   reader.onload = async (e) => {
     try {
       const data = JSON.parse(e.target.result);
-      if (data.tamara_sets_v13)
-        localStorage.setItem(
-          "tamara_sets_v13",
-          JSON.stringify(data.tamara_sets_v13),
-        );
-      if (data.tamara_prs_v13)
-        localStorage.setItem(
-          "tamara_prs_v13",
-          JSON.stringify(data.tamara_prs_v13),
-        );
-      if (data.tamara_workout_history)
-        localStorage.setItem(
-          "tamara_workout_history",
-          JSON.stringify(data.tamara_workout_history),
-        );
-      if (data.tamara_measures_list)
-        localStorage.setItem(
-          "tamara_measures_list",
-          JSON.stringify(data.tamara_measures_list),
-        );
+      CLOUD_SYNC_KEYS.forEach((key) => {
+        if (data[key] !== undefined && data[key] !== null) {
+          const val =
+            typeof data[key] === "string"
+              ? data[key]
+              : JSON.stringify(data[key]);
+          localStorage.setItem(key, val);
+        }
+      });
+      localStorage.setItem("tamara_last_local_update", String(Date.now()));
+      renderWorkoutCards();
       renderDashboard();
       await pushToFirestore(false);
       showToast("BACKUP RESTAURADO COM SUCESSO ✓", 2000);
     } catch {
       showToast("ARQUIVO JSON INVÁLIDO!", 1800);
+    } finally {
+      event.target.value = "";
     }
   };
   reader.readAsText(file);
@@ -1763,11 +1835,10 @@ async function resetAllAppData() {
   );
   if (!confirmed) return;
 
-  localStorage.removeItem("tamara_sets_v13");
-  localStorage.removeItem("tamara_prs_v13");
-  localStorage.removeItem("tamara_workout_history");
-  localStorage.removeItem("tamara_measures_list");
+  CLOUD_SYNC_KEYS.forEach((key) => localStorage.removeItem(key));
   localStorage.removeItem("tamara_active_session_v17");
+  localStorage.removeItem("tamara_last_cloud_sync_time");
+  localStorage.setItem("tamara_last_local_update", String(Date.now()));
   clearSavedActiveSession();
 
   renderWorkoutCards();
