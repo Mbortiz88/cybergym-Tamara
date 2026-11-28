@@ -2,8 +2,8 @@ const CACHE_NAME = "tamara-cybergym-hud-v2.0.4";
 const ASSETS = [
   "./",
   "./index.html",
-  "./style.css?v=2.0.2",
-  "./script.js?v=2.0.2",
+  "./style.css?v=2.0.4",
+  "./script.js?v=2.0.4",
   "./manifest.json",
   "./icon-512.jpg",
 ];
@@ -31,6 +31,8 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") return;
+
   if (
     event.request.url.includes("googleapis.com") ||
     event.request.url.includes("gstatic.com") ||
@@ -42,10 +44,12 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     fetch(event.request)
       .then((res) => {
-        const clone = res.clone();
-        caches
-          .open(CACHE_NAME)
-          .then((cache) => cache.put(event.request, clone));
+        if (res && res.status === 200) {
+          const clone = res.clone();
+          caches
+            .open(CACHE_NAME)
+            .then((cache) => cache.put(event.request, clone));
+        }
         return res;
       })
       .catch(() => caches.match(event.request)),
